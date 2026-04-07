@@ -1,0 +1,59 @@
+name: build-windows
+
+on:
+  pull_request:
+    paths:
+      - '**/*.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'live-translator-go.exe.manifest'
+      - 'scripts/build-release.ps1'
+      - '.github/workflows/build-windows.yml'
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-portable-exe:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run tests
+        shell: pwsh
+        run: go test ./...
+
+      - name: Install Windows resource tool
+        shell: pwsh
+        run: go install github.com/akavel/rsrc@latest
+
+      - name: Build standalone EXE
+        shell: pwsh
+        run: ./scripts/build-release.ps1
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-translator-go-windows-amd64
+          path: dist/live-translator-go.exe
+          if-no-files-found: error
+
+      - name: Publish release asset
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/live-translator-go.exe
+          generate_release_notes: true

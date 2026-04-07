@@ -5,6 +5,8 @@ setting.json
 *.exe
 *.dll
 *.test
+*.syso
+dist/
 
 # Temporary screenshots and debug files
 tmp-*
@@ -15,3 +17,4 @@ tmp-*
 
 # Editor settings
 .vscode/
+

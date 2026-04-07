@@ -77,6 +77,28 @@ Desktop build without a visible console window:
 go build -ldflags="-H windowsgui" ./cmd/live-translator-go
 ```
 
+## Portable EXE Build
+
+The repository includes a GitHub Actions workflow that builds a single portable `.exe` file.
+
+What the workflow does:
+
+- embeds the Windows manifest into the executable,
+- builds one standalone `live-translator-go.exe`,
+- uploads the `.exe` as a workflow artifact,
+- attaches the raw `.exe` to GitHub Releases for tags matching `v*`.
+
+That means the release output is one file only: `live-translator-go.exe`.
+No installer is required.
+
+The app will create `setting.json` on first run when needed, so the executable is the only file that needs to be distributed.
+
+If you want to build the same portable executable locally:
+
+```powershell
+./scripts/build-release.ps1
+```
+
 ## Project Structure
 
 - `cmd/live-translator-go` - application entry point,
@@ -85,7 +107,16 @@ go build -ldflags="-H windowsgui" ./cmd/live-translator-go
 - `internal/pipeline` - input coalescing and processing,
 - `internal/overlay` - main window and preview,
 - `internal/app` - app wiring and settings flow,
+- `scripts/build-release.ps1` - local and CI build for the standalone Windows executable,
 - `setting.json` - local runtime settings, intentionally not committed.
+
+## Release Flow
+
+To publish a downloadable `.exe` through GitHub Actions:
+
+1. Push commits to `main` to validate the Windows build in CI.
+2. Create and push a tag such as `v0.1.0`.
+3. GitHub Actions will build the app and attach `live-translator-go.exe` directly to the release.
 
 ## License
 
