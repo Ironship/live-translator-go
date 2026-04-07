@@ -4,6 +4,7 @@ package captions
 
 import (
 	"fmt"
+	"os/exec"
 	"strings"
 	"unsafe"
 
@@ -15,6 +16,7 @@ type LaunchMode int
 const (
 	LaunchModeDirect LaunchMode = iota
 	LaunchModeSettings
+	LaunchModeRestarted
 )
 
 const liveCaptionsShellTarget = "shell:AppsFolder\\{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\LiveCaptions.exe"
@@ -37,9 +39,26 @@ var liveCaptionsFallbackTargets = []string{
 	"ms-settings:easeofaccess-closedcaptioning",
 }
 
+func OpenLiveCaptionsWithRecovery(config Config) (LaunchMode, error) {
+	config = withDefaults(config)
+	diagnostics := inspectDiagnostics(config)
+	if diagnostics.WindowHung {
+		if err := terminateProcessByName(config.ProcessName); err != nil {
+			return LaunchModeRestarted, err
+		}
+		return openLiveCaptionsTargets(LaunchModeRestarted)
+	}
+
+	return openLiveCaptionsTargets(LaunchModeDirect)
+}
+
 func OpenLiveCaptions() (LaunchMode, error) {
+	return OpenLiveCaptionsWithRecovery(withDefaults(Config{}))
+}
+
+func openLiveCaptionsTargets(mode LaunchMode) (LaunchMode, error) {
 	if err := openShellTarget(liveCaptionsShellTarget); err == nil {
-		return LaunchModeDirect, nil
+		return mode, nil
 	}
 
 	errors := []string{fmt.Sprintf("%s failed", liveCaptionsShellTarget)}
@@ -52,6 +71,31 @@ func OpenLiveCaptions() (LaunchMode, error) {
 	}
 
 	return LaunchModeSettings, fmt.Errorf("unable to open Live Captions or accessibility settings: %s", strings.Join(errors, "; "))
+}
+
+func terminateProcessByName(processName string) error {
+	if !processRunningByName(processName) {
+		return nil
+	}
+
+	imageName := strings.TrimSpace(processName)
+	if imageName == "" {
+		imageName = "LiveCaptions"
+	}
+	if !strings.HasSuffix(strings.ToLower(imageName), ".exe") {
+		imageName += ".exe"
+	}
+
+	cmd := exec.Command("taskkill", "/IM", imageName, "/F", "/T")
+	if output, err := cmd.CombinedOutput(); err != nil {
+		trimmed := strings.TrimSpace(string(output))
+		if trimmed == "" {
+			return fmt.Errorf("unable to terminate %s: %w", imageName, err)
+		}
+		return fmt.Errorf("unable to terminate %s: %s", imageName, trimmed)
+	}
+
+	return nil
 }
 
 func OpenSpeechRecognitionPanel() error {

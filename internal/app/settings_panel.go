@@ -497,23 +497,35 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 		}
 
 		panel.showInfo("Testing provider connection...")
-		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(updated.RequestTimeoutMs)*time.Millisecond)
-		defer cancel()
+		testButton.SetEnabled(false)
 
-		message, err := translator.TestConnection(ctx, translator.Config{
-			Provider:       updated.Provider,
-			BaseURL:        updated.BaseURL,
-			APIKey:         updated.APIKey,
-			Model:          updated.Model,
-			SourceLanguage: updated.SourceLanguage,
-			TargetLanguage: updated.TargetLanguage,
-		})
-		if err != nil {
-			panel.showError(err.Error())
-			return
-		}
+		go func(values settings.Values) {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(values.RequestTimeoutMs)*time.Millisecond)
+			defer cancel()
 
-		panel.showSuccess(message)
+			message, err := translator.TestConnection(ctx, translator.Config{
+				Provider:       values.Provider,
+				BaseURL:        values.BaseURL,
+				APIKey:         values.APIKey,
+				Model:          values.Model,
+				SourceLanguage: values.SourceLanguage,
+				TargetLanguage: values.TargetLanguage,
+			})
+
+			panel.statusLabel.Synchronize(func() {
+				if panel.statusLabel.IsDisposed() || testButton.IsDisposed() {
+					return
+				}
+
+				testButton.SetEnabled(true)
+				if err != nil {
+					panel.showError(err.Error())
+					return
+				}
+
+				panel.showSuccess(message)
+			})
+		}(updated)
 	})
 
 	cancelButton.Clicked().Attach(func() {

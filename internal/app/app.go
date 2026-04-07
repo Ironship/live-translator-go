@@ -68,13 +68,18 @@ func Run() error {
 
 func runPipeline(ctx context.Context, config Config, output *overlay.Window) {
 	watcher := captions.NewWatcher(config.Captions)
-	watcher.OnAvailabilityChanged(func(available bool) {
-		if available {
+	watcher.OnDiagnosticsChanged(func(diagnostics captions.Diagnostics) {
+		switch {
+		case diagnostics.WindowHung:
+			output.SetStatus(fmt.Sprintf("Live Captions process is running but not responding. Current provider: %s. Click Captions to restart it.", config.Translator.Provider))
+		case diagnostics.WindowFound:
 			output.BringToFront()
 			output.SetStatus(fmt.Sprintf("Watching Live Captions window. Current provider: %s", config.Translator.Provider))
-			return
+		case diagnostics.ProcessRunning:
+			output.SetStatus(fmt.Sprintf("Live Captions process is running, but its window is not available yet. Current provider: %s", config.Translator.Provider))
+		default:
+			output.SetStatus(fmt.Sprintf("Waiting for Live Captions window. Current provider: %s. Click Captions if it is not running.", config.Translator.Provider))
 		}
-		output.SetStatus(fmt.Sprintf("Waiting for Live Captions window. Current provider: %s. Click Open Live Captions if it is not running.", config.Translator.Provider))
 	})
 	translatorClient := config.Translator.NewClient()
 	processor := pipeline.NewProcessor(
@@ -84,7 +89,7 @@ func runPipeline(ctx context.Context, config Config, output *overlay.Window) {
 	)
 	defer processor.Close()
 
-	events := make(chan captions.Event)
+	events := make(chan captions.Event, 16)
 	errorsCh := make(chan error, 1)
 
 	go func() {

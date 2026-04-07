@@ -12,13 +12,20 @@ import (
 )
 
 const (
-	previewFrameInterval = 16 * time.Millisecond
-	previewScrollSpeed   = 220.0
-	previewLineGap       = 10
-	previewHorizontalPad = 8
-	previewVerticalPad   = 10
-	previewMeasureHeight = 4096
+	previewFrameInterval             = 16 * time.Millisecond
+	previewLineGap                   = 10
+	previewHorizontalPad             = 8
+	previewVerticalPad               = 10
+	previewMeasureHeight             = 4096
+	previewAnimatedIncomingLineLimit = 3
+	previewScrollDurationPerLine     = 180 * time.Millisecond
+	previewScrollDurationMax         = 420 * time.Millisecond
 )
+
+type previewLine struct {
+	Text      string
+	Alternate bool
+}
 
 type previewSurface struct {
 	widget              *walk.CustomWidget
@@ -29,20 +36,24 @@ type previewSurface struct {
 	alternateLineColors bool
 	stageTopColor       walk.Color
 	stageBottomColor    walk.Color
-	lines               []string
+	lines               []previewLine
+	scrollStartOffset   float64
 	scrollOffset        float64
+	scrollStartedAt     time.Time
+	scrollDuration      time.Duration
+	scrollAnimating     bool
 	stopCh              chan struct{}
 	stopped             chan struct{}
 }
 
-func newPreviewSurface(parent walk.Container, initial []string, textColor walk.Color, alternateTextColor walk.Color, alternateLineColors bool, stageTopColor walk.Color, stageBottomColor walk.Color) (*previewSurface, error) {
+func newPreviewSurface(parent walk.Container, initial []previewLine, textColor walk.Color, alternateTextColor walk.Color, alternateLineColors bool, stageTopColor walk.Color, stageBottomColor walk.Color) (*previewSurface, error) {
 	surface := &previewSurface{
 		textColor:           textColor,
 		alternateTextColor:  alternateTextColor,
 		alternateLineColors: alternateLineColors,
 		stageTopColor:       stageTopColor,
 		stageBottomColor:    stageBottomColor,
-		lines:               append([]string(nil), initial...),
+		lines:               append([]previewLine(nil), initial...),
 		stopCh:              make(chan struct{}),
 		stopped:             make(chan struct{}),
 	}
@@ -96,23 +107,35 @@ func (p *previewSurface) SetStageColors(top walk.Color, bottom walk.Color) {
 	p.invalidate()
 }
 
-func (p *previewSurface) SetLines(lines []string, animate bool) {
-	lines = compactCaptionLines(lines)
+func (p *previewSurface) SetLines(lines []previewLine, animate bool) {
+	lines = compactPreviewLines(lines)
 	p.mu.Lock()
-	previous := append([]string(nil), p.lines...)
-	p.lines = append([]string(nil), lines...)
+	previous := append([]previewLine(nil), p.lines...)
+	p.lines = append([]previewLine(nil), lines...)
 	font := p.font
 	p.mu.Unlock()
 
-	if animate {
-		incomingCount := countIncomingPreviewLines(previous, lines)
-		if incomingCount > 0 {
-			advance := p.measureScrollAdvance(lines[len(lines)-incomingCount:], font)
-			p.mu.Lock()
-			p.scrollOffset += advance
-			p.mu.Unlock()
-		}
+	incomingCount := countIncomingPreviewLines(previous, lines)
+	if !animate || !shouldAnimatePreviewTransition(previous, incomingCount) {
+		p.mu.Lock()
+		p.clearScrollAnimationLocked()
+		p.mu.Unlock()
+		p.invalidate()
+		return
 	}
+
+	advance := p.measureScrollAdvance(lines[len(lines)-incomingCount:], font)
+	p.mu.Lock()
+	if advance <= 0 {
+		p.clearScrollAnimationLocked()
+	} else {
+		p.scrollStartOffset = advance
+		p.scrollOffset = advance
+		p.scrollStartedAt = time.Now()
+		p.scrollDuration = previewScrollDuration(incomingCount)
+		p.scrollAnimating = p.scrollDuration > 0
+	}
+	p.mu.Unlock()
 
 	p.invalidate()
 }
@@ -124,21 +147,23 @@ func (p *previewSurface) runAnimator() {
 		close(p.stopped)
 	}()
 
-	lastTick := time.Now()
 	for {
 		select {
 		case <-p.stopCh:
 			return
 		case now := <-ticker.C:
-			delta := now.Sub(lastTick).Seconds()
-			lastTick = now
-
 			shouldInvalidate := false
 			p.mu.Lock()
-			if p.scrollOffset > 0 {
-				p.scrollOffset -= previewScrollSpeed * delta
-				if p.scrollOffset < 0 {
-					p.scrollOffset = 0
+			if p.scrollAnimating {
+				elapsed := now.Sub(p.scrollStartedAt)
+				if elapsed >= p.scrollDuration {
+					p.clearScrollAnimationLocked()
+				} else {
+					remaining := 1 - (float64(elapsed) / float64(p.scrollDuration))
+					if remaining < 0 {
+						remaining = 0
+					}
+					p.scrollOffset = p.scrollStartOffset * remaining
 				}
 				shouldInvalidate = true
 			}
@@ -174,7 +199,7 @@ func (p *previewSurface) paint(canvas *walk.Canvas, updateBounds walk.Rectangle)
 	}
 
 	p.mu.Lock()
-	lines := append([]string(nil), p.lines...)
+	lines := append([]previewLine(nil), p.lines...)
 	font := p.font
 	textColor := p.textColor
 	alternateTextColor := p.alternateTextColor
@@ -223,7 +248,7 @@ func (p *previewSurface) paint(canvas *walk.Canvas, updateBounds walk.Rectangle)
 			if err := canvas.DrawTextPixels(layout.Text, font, walk.RGB(8, 10, 15), shadowBounds, walk.TextCenter|walk.TextWordbreak|walk.TextNoPrefix); err != nil {
 				return err
 			}
-			if err := canvas.DrawTextPixels(layout.Text, font, previewLineColor(textColor, alternateTextColor, index, len(layouts), alternateLineColors), lineBounds, walk.TextCenter|walk.TextWordbreak|walk.TextNoPrefix); err != nil {
+			if err := canvas.DrawTextPixels(layout.Text, font, previewLineColor(textColor, alternateTextColor, layout.Alternate, alternateLineColors), lineBounds, walk.TextCenter|walk.TextWordbreak|walk.TextNoPrefix); err != nil {
 				return err
 			}
 		}
@@ -234,7 +259,7 @@ func (p *previewSurface) paint(canvas *walk.Canvas, updateBounds walk.Rectangle)
 	return nil
 }
 
-func (p *previewSurface) measureScrollAdvance(lines []string, font *walk.Font) float64 {
+func (p *previewSurface) measureScrollAdvance(lines []previewLine, font *walk.Font) float64 {
 	if len(lines) == 0 {
 		return 0
 	}
@@ -272,11 +297,12 @@ func (p *previewSurface) measureScrollAdvance(lines []string, font *walk.Font) f
 }
 
 type previewLineLayout struct {
-	Text   string
-	Height int
+	Text      string
+	Height    int
+	Alternate bool
 }
 
-func measurePreviewLayouts(canvas *walk.Canvas, font *walk.Font, lines []string, width int) ([]previewLineLayout, int, error) {
+func measurePreviewLayouts(canvas *walk.Canvas, font *walk.Font, lines []previewLine, width int) ([]previewLineLayout, int, error) {
 	if len(lines) == 0 {
 		return nil, 0, nil
 	}
@@ -287,7 +313,7 @@ func measurePreviewLayouts(canvas *walk.Canvas, font *walk.Font, lines []string,
 	layouts := make([]previewLineLayout, 0, len(lines))
 	totalHeight := 0
 	for index, line := range lines {
-		text := strings.TrimSpace(line)
+		text := strings.TrimSpace(line.Text)
 		if text == "" {
 			continue
 		}
@@ -305,13 +331,13 @@ func measurePreviewLayouts(canvas *walk.Canvas, font *walk.Font, lines []string,
 			totalHeight += previewLineGap
 		}
 		totalHeight += lineHeight
-		layouts = append(layouts, previewLineLayout{Text: text, Height: lineHeight})
+		layouts = append(layouts, previewLineLayout{Text: text, Height: lineHeight, Alternate: line.Alternate})
 	}
 
 	return layouts, totalHeight, nil
 }
 
-func countIncomingPreviewLines(previous []string, next []string) int {
+func countIncomingPreviewLines(previous []previewLine, next []previewLine) int {
 	if len(next) == 0 {
 		return 0
 	}
@@ -319,7 +345,7 @@ func countIncomingPreviewLines(previous []string, next []string) int {
 		return len(next)
 	}
 
-	overlap := findCaptionOverlap(previous, next)
+	overlap := previewLineOverlap(previous, next)
 	incoming := len(next) - overlap
 	if incoming < 0 {
 		return 0
@@ -327,16 +353,97 @@ func countIncomingPreviewLines(previous []string, next []string) int {
 	return incoming
 }
 
-func previewLineColor(primary walk.Color, alternate walk.Color, index int, total int, alternateEnabled bool) walk.Color {
-	if !alternateEnabled || total <= 1 {
-		return primary
+func shouldAnimatePreviewTransition(previous []previewLine, incomingCount int) bool {
+	if len(previous) == 0 {
+		return false
 	}
+	if incomingCount <= 0 {
+		return false
+	}
+	return incomingCount <= previewAnimatedIncomingLineLimit
+}
 
-	if (total-1-index)%2 == 0 {
+func previewScrollDuration(incomingCount int) time.Duration {
+	if incomingCount <= 0 {
+		return 0
+	}
+	duration := time.Duration(incomingCount) * previewScrollDurationPerLine
+	if duration > previewScrollDurationMax {
+		return previewScrollDurationMax
+	}
+	return duration
+}
+
+func (p *previewSurface) clearScrollAnimationLocked() {
+	p.scrollStartOffset = 0
+	p.scrollOffset = 0
+	p.scrollStartedAt = time.Time{}
+	p.scrollDuration = 0
+	p.scrollAnimating = false
+}
+
+func previewLineColor(primary walk.Color, alternate walk.Color, useAlternate bool, alternateEnabled bool) walk.Color {
+	if !alternateEnabled || !useAlternate {
 		return primary
 	}
 
 	return alternate
+}
+
+func compactPreviewLines(lines []previewLine) []previewLine {
+	if len(lines) == 0 {
+		return nil
+	}
+
+	compacted := make([]previewLine, 0, len(lines))
+	for _, line := range lines {
+		text := strings.TrimSpace(line.Text)
+		if text == "" {
+			continue
+		}
+
+		current := line
+		current.Text = text
+		if len(compacted) > 0 && shouldReplaceCaption(compacted[len(compacted)-1].Text, current.Text) {
+			current.Alternate = compacted[len(compacted)-1].Alternate
+			compacted[len(compacted)-1] = current
+			continue
+		}
+
+		compacted = append(compacted, current)
+	}
+
+	return compacted
+}
+
+func previewLineTexts(lines []previewLine) []string {
+	texts := make([]string, 0, len(lines))
+	for _, line := range lines {
+		text := strings.TrimSpace(line.Text)
+		if text != "" {
+			texts = append(texts, text)
+		}
+	}
+	return texts
+}
+
+func previewLineOverlap(previous []previewLine, next []previewLine) int {
+	return findCaptionOverlap(previewLineTexts(previous), previewLineTexts(next))
+}
+
+func previewLineSignature(lines []previewLine) string {
+	var builder strings.Builder
+	for _, line := range lines {
+		if line.Alternate {
+			builder.WriteByte('1')
+		} else {
+			builder.WriteByte('0')
+		}
+		builder.WriteByte(':')
+		builder.WriteString(strings.TrimSpace(line.Text))
+		builder.WriteByte('\n')
+	}
+	return builder.String()
 }
 
 func blendPreviewColor(primary walk.Color, secondary walk.Color, primaryWeight float64) walk.Color {

@@ -36,52 +36,56 @@ type Config struct {
 }
 
 type Window struct {
-	mainWindow         *walk.MainWindow
-	shell              *walk.Composite
-	rootLayout         *walk.BoxLayout
-	headerCard         *walk.Composite
-	previewCard        *walk.Composite
-	previewPanel       *walk.GradientComposite
-	previewHeader      *walk.GradientComposite
-	previewLayout      *walk.BoxLayout
-	previewStage       *walk.GradientComposite
-	previewStageLay    *walk.BoxLayout
-	previewTitle       *walk.Label
-	focusHint          *walk.Label
-	titleLabel         *walk.Label
-	statusLabel        *walk.Label
-	previewSurface     *previewSurface
-	openCaptions       *walk.PushButton
-	speechPanel        *walk.PushButton
-	settings           *walk.PushButton
-	alwaysOnTop        *walk.PushButton
-	focus              *walk.PushButton
-	exit               *walk.PushButton
-	settingsCard       *walk.Composite
-	settingsHost       *walk.Composite
-	shellBrush         *walk.SolidColorBrush
-	previewBrush       *walk.SolidColorBrush
-	previewStageB      *walk.SolidColorBrush
-	focusShellBrush    *walk.SolidColorBrush
-	focusPreviewB      *walk.SolidColorBrush
-	focusStageB        *walk.SolidColorBrush
-	lastText           string
-	captionHistory     []string
-	currentConfig      Config
-	collapsedBounds    walk.Rectangle
-	expandedBounds     walk.Rectangle
-	focusBounds        walk.Rectangle
-	applyingBounds     bool
-	settingsVisible    bool
-	focusMode          bool
-	alwaysOnTopEnabled bool
+	mainWindow          *walk.MainWindow
+	shell               *walk.Composite
+	rootLayout          *walk.BoxLayout
+	headerCard          *walk.Composite
+	previewCard         *walk.Composite
+	previewPanel        *walk.GradientComposite
+	previewHeader       *walk.GradientComposite
+	previewLayout       *walk.BoxLayout
+	previewStage        *walk.GradientComposite
+	previewStageLay     *walk.BoxLayout
+	previewTitle        *walk.Label
+	focusHint           *walk.Label
+	titleLabel          *walk.Label
+	statusLabel         *walk.Label
+	previewSurface      *previewSurface
+	openCaptions        *walk.PushButton
+	speechPanel         *walk.PushButton
+	settings            *walk.PushButton
+	alwaysOnTop         *walk.PushButton
+	focus               *walk.PushButton
+	exit                *walk.PushButton
+	settingsCard        *walk.Composite
+	settingsHost        *walk.Composite
+	shellBrush          *walk.SolidColorBrush
+	previewBrush        *walk.SolidColorBrush
+	previewStageB       *walk.SolidColorBrush
+	focusShellBrush     *walk.SolidColorBrush
+	focusPreviewB       *walk.SolidColorBrush
+	focusStageB         *walk.SolidColorBrush
+	lastText            string
+	captionHistory      []previewLine
+	lastCaptionSnapshot []string
+	currentConfig       Config
+	collapsedBounds     walk.Rectangle
+	expandedBounds      walk.Rectangle
+	focusBounds         walk.Rectangle
+	applyingBounds      bool
+	settingsVisible     bool
+	focusMode           bool
+	alwaysOnTopEnabled  bool
 }
 
 const (
-	maxCaptionHistoryLines = 5
-	layeredWindowAlphaFlag = 0x2
-	normalWindowAlpha      = 255
-	focusWindowAlpha       = 224
+	minCaptionHistoryLines   = 8
+	maxCaptionHistoryLines   = 36
+	historyLineHeadroom      = 4
+	minEstimatedPreviewLineH = 26
+	layeredWindowAlphaFlag   = 0x2
+	normalWindowAlpha        = 255
+	focusWindowAlpha         = 224
 )
 
 var (
@@ -483,9 +487,10 @@ func New(config Config) (*Window, error) {
 	if len(initialLines) == 0 && strings.TrimSpace(config.InitialText) != "" {
 		initialLines = []string{strings.TrimSpace(config.InitialText)}
 	}
+	initialPreviewLines := appendPreviewTextsWithPersistentColors(nil, initialLines...)
 	previewSurface, err := newPreviewSurface(
 		previewStage,
-		initialLines,
+		initialPreviewLines,
 		walk.RGB(config.TextColor.R, config.TextColor.G, config.TextColor.B),
 		walk.RGB(config.AlternateTextColor.R, config.AlternateTextColor.G, config.AlternateTextColor.B),
 		config.AlternateLineColors,
@@ -574,8 +579,8 @@ func New(config Config) (*Window, error) {
 		focusShellBrush: focusShellBrush,
 		focusPreviewB:   focusPreviewBrush,
 		focusStageB:     focusStageBrush,
-		lastText:        config.InitialText,
-		captionHistory:  append([]string(nil), initialLines...),
+		lastText:        previewLineSignature(initialPreviewLines),
+		captionHistory:  append([]previewLine(nil), initialPreviewLines...),
 		currentConfig:   config,
 		settingsVisible: false,
 	}
@@ -793,7 +798,8 @@ func (w *Window) SetText(value string) {
 			return
 		}
 		w.captionHistory = nil
-		w.applyPreviewLines(splitCaptionLines(text), false)
+		w.lastCaptionSnapshot = nil
+		w.applyPreviewLines(appendPreviewTextsWithPersistentColors(nil, splitCaptionLines(text)...), false)
 	})
 }
 
@@ -1059,38 +1065,233 @@ func isStoredBounds(bounds walk.Rectangle) bool {
 	return bounds.Width > 0 && bounds.Height > 0
 }
 
-func (w *Window) applyPreviewLines(lines []string, animate bool) {
-	text := strings.Join(lines, "\r\n")
-	if text == w.lastText {
+func (w *Window) applyPreviewLines(lines []previewLine, animate bool) {
+	signature := previewLineSignature(lines)
+	if signature == w.lastText {
 		return
 	}
 
 	w.previewSurface.SetLines(lines, animate)
-	w.lastText = text
+	w.lastText = signature
 }
 
 func (w *Window) pushCaptionLines(lines []string) {
-	if len(lines) == 0 {
+	incoming := compactCaptionLines(lines)
+	if len(incoming) == 0 {
 		return
 	}
 
-	lines = compactCaptionLines(lines)
+	if len(w.lastCaptionSnapshot) == 0 {
+		w.captionHistory = nil
+	}
 
-	if len(w.captionHistory) == 0 {
-		w.captionHistory = append([]string(nil), lines...)
-		if len(w.captionHistory) > maxCaptionHistoryLines {
-			w.captionHistory = append([]string(nil), w.captionHistory[len(w.captionHistory)-maxCaptionHistoryLines:]...)
+	if replacement, ok := newestCaptionReplacement(w.lastCaptionSnapshot, incoming); ok {
+		w.captionHistory = replaceLastPreviewCaption(w.captionHistory, replacement)
+	}
+
+	appended := appendedCaptionLines(w.lastCaptionSnapshot, incoming)
+	if len(appended) > 0 {
+		w.captionHistory = appendPreviewTextsWithPersistentColors(w.captionHistory, appended...)
+	}
+
+	w.captionHistory = trimPreviewHistory(w.captionHistory, w.previewHistoryLimit())
+	w.lastCaptionSnapshot = append([]string(nil), incoming...)
+}
+
+func appendedCaptionLines(previous []string, incoming []string) []string {
+	if len(incoming) == 0 {
+		return nil
+	}
+	if len(previous) == 0 {
+		return append([]string(nil), incoming...)
+	}
+
+	overlap := findCaptionOverlap(previous, incoming)
+	if overlap > 0 {
+		return append([]string(nil), incoming[overlap:]...)
+	}
+
+	if _, ok := newestCaptionReplacement(previous, incoming); ok {
+		return nil
+	}
+
+	appended := make([]string, 0, len(incoming))
+	for _, line := range incoming {
+		if !captionSliceContainsComparable(previous, line) {
+			appended = append(appended, line)
 		}
-		return
 	}
 
-	overlap := findCaptionOverlap(w.captionHistory, lines)
-	merged := append([]string(nil), w.captionHistory[:len(w.captionHistory)-overlap]...)
-	merged = append(merged, lines...)
-	w.captionHistory = compactCaptionLines(merged)
-	if len(w.captionHistory) > maxCaptionHistoryLines {
-		w.captionHistory = append([]string(nil), w.captionHistory[len(w.captionHistory)-maxCaptionHistoryLines:]...)
+	if len(appended) == 0 {
+		return nil
 	}
+
+	return appended
+}
+
+func newestCaptionReplacement(previous []string, incoming []string) (string, bool) {
+	if len(previous) == 0 || len(incoming) == 0 {
+		return "", false
+	}
+
+	previousLast := previous[len(previous)-1]
+	incomingLast := incoming[len(incoming)-1]
+	if !shouldReplaceCaption(previousLast, incomingLast) && !sameCaptionIdentity(previousLast, incomingLast) {
+		return "", false
+	}
+	if captionComparisonKey(previousLast) == captionComparisonKey(incomingLast) {
+		return "", false
+	}
+
+	return incomingLast, true
+}
+
+func captionSliceContainsComparable(lines []string, target string) bool {
+	for _, line := range lines {
+		if shouldReplaceCaption(line, target) || sameCaptionIdentity(line, target) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func replaceLastPreviewCaption(lines []previewLine, value string) []previewLine {
+	if len(lines) == 0 {
+		return nil
+	}
+
+	updated := append([]previewLine(nil), lines...)
+	updated[len(updated)-1].Text = strings.TrimSpace(value)
+	return compactPreviewLines(updated)
+}
+
+func (w *Window) previewHistoryLimit() int {
+	limit := minCaptionHistoryLines
+	if w.previewSurface == nil {
+		return limit
+	}
+
+	widget := w.previewSurface.Widget()
+	if widget == nil || widget.IsDisposed() {
+		return limit
+	}
+
+	height := widget.ClientBoundsPixels().Height
+	if height <= 0 {
+		return limit
+	}
+
+	estimatedLineHeight := w.currentConfig.FontSize + 12
+	if estimatedLineHeight < minEstimatedPreviewLineH {
+		estimatedLineHeight = minEstimatedPreviewLineH
+	}
+
+	perLineHeight := estimatedLineHeight + previewLineGap
+	if perLineHeight <= 0 {
+		return limit
+	}
+
+	visibleLines := height / perLineHeight
+	if visibleLines < 1 {
+		visibleLines = 1
+	}
+
+	limit = visibleLines + historyLineHeadroom
+	if limit < minCaptionHistoryLines {
+		return minCaptionHistoryLines
+	}
+	if limit > maxCaptionHistoryLines {
+		return maxCaptionHistoryLines
+	}
+
+	return limit
+}
+
+func mergePreviewHistory(existing []previewLine, incoming []string, limit int) []previewLine {
+	incoming = compactCaptionLines(incoming)
+	if len(incoming) == 0 {
+		return trimPreviewHistory(existing, limit)
+	}
+
+	existing = compactPreviewLines(existing)
+	if len(existing) == 0 {
+		return trimPreviewHistory(appendPreviewTextsWithPersistentColors(nil, incoming...), limit)
+	}
+
+	overlap := findCaptionOverlap(previewLineTexts(existing), incoming)
+	keepCount := len(existing) - overlap
+	merged := append([]previewLine(nil), existing[:keepCount]...)
+	for index := 0; index < overlap; index++ {
+		preserved := existing[keepCount+index]
+		preserved.Text = incoming[index]
+		merged = append(merged, preserved)
+	}
+
+	merged = appendPreviewTextsWithPersistentColors(merged, incoming[overlap:]...)
+	return trimPreviewHistory(merged, limit)
+}
+
+func appendPreviewTextsWithPersistentColors(base []previewLine, texts ...string) []previewLine {
+	result := append([]previewLine(nil), base...)
+	useAlternate := false
+	if len(result) > 0 {
+		useAlternate = !result[len(result)-1].Alternate
+	}
+
+	for _, text := range texts {
+		trimmed := strings.TrimSpace(text)
+		if trimmed == "" {
+			continue
+		}
+
+		assignedAlternate := useAlternate
+		if preservedAlternate, ok := findPreviewLineAlternate(result, trimmed); ok {
+			assignedAlternate = preservedAlternate
+		}
+
+		result = append(result, previewLine{Text: trimmed, Alternate: assignedAlternate})
+		useAlternate = !assignedAlternate
+	}
+
+	return result
+}
+
+func findPreviewLineAlternate(lines []previewLine, text string) (bool, bool) {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" {
+		return false, false
+	}
+
+	for index := len(lines) - 1; index >= 0; index-- {
+		if sameCaptionIdentity(lines[index].Text, trimmed) {
+			return lines[index].Alternate, true
+		}
+	}
+
+	return false, false
+}
+
+func sameCaptionIdentity(previous string, next string) bool {
+	previousKey := captionComparisonKey(previous)
+	nextKey := captionComparisonKey(next)
+	if previousKey == "" || nextKey == "" {
+		return false
+	}
+
+	if previousKey == nextKey {
+		return true
+	}
+
+	return strings.HasPrefix(previousKey, nextKey) || strings.HasPrefix(nextKey, previousKey)
+}
+
+func trimPreviewHistory(lines []previewLine, limit int) []previewLine {
+	lines = compactPreviewLines(lines)
+	if limit > 0 && len(lines) > limit {
+		lines = lines[len(lines)-limit:]
+	}
+	return append([]previewLine(nil), lines...)
 }
 
 func compactCaptionLines(lines []string) []string {

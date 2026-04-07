@@ -32,33 +32,18 @@ type Processor struct {
 	translator Translator
 	output     Output
 
-	mu              sync.Mutex
-	parent          context.Context
-	lastInput       string
-	pendingSource   string
-	committedAnchor string
-	queue           []string
-	translating     bool
-	cancel          context.CancelFunc
-	idleTimer       *time.Timer
-	idleVersion     uint64
+	mu          sync.Mutex
+	parent      context.Context
+	lastInput   string
+	queued      string
+	active      string
+	translating bool
+	cancel      context.CancelFunc
 }
 
 func NewProcessor(config Config, translator Translator, output Output) *Processor {
 	if config.RequestTimeout <= 0 {
 		config.RequestTimeout = 8 * time.Second
-	}
-	if config.IdleFlushDelay <= 0 {
-		config.IdleFlushDelay = 900 * time.Millisecond
-	}
-	if config.ForceChunkWords <= 0 {
-		config.ForceChunkWords = 16
-	}
-	if config.ForceChunkChars <= 0 {
-		config.ForceChunkChars = 110
-	}
-	if config.ForceChunkAnchorWords <= 0 {
-		config.ForceChunkAnchorWords = 4
 	}
 
 	return &Processor{
@@ -69,37 +54,27 @@ func NewProcessor(config Config, translator Translator, output Output) *Processo
 }
 
 func (p *Processor) Submit(parent context.Context, input string) {
-	normalized := textutil.NormalizeCaption(input)
+	normalized := textutil.NormalizeCaptionSnapshot(input)
 	if normalized == "" {
 		return
 	}
 
 	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	p.parent = parent
 	if normalized == p.lastInput {
-		p.mu.Unlock()
 		return
 	}
 
 	p.lastInput = normalized
-	if p.pendingSource == "" {
-		p.pendingSource = pendingFromCurrentAfterAnchor(p.committedAnchor, normalized)
-	} else {
-		updatedPending, reset := mergePendingSource(p.pendingSource, normalized)
-		if reset {
-			p.enqueueLocked(p.pendingSource)
-		}
-		p.pendingSource = updatedPending
+	p.queued = normalized
+
+	if p.translating && p.cancel != nil {
+		p.cancel()
 	}
 
-	readyChunks, remainder := consumeReadyChunks(p.pendingSource, p.config)
-	p.pendingSource = remainder
-	for _, chunk := range readyChunks {
-		p.enqueueLocked(chunk)
-	}
-	p.scheduleIdleFlushLocked()
 	p.startNextLocked()
-	p.mu.Unlock()
 }
 
 func (p *Processor) Close() {
@@ -110,101 +85,71 @@ func (p *Processor) Close() {
 		p.cancel()
 		p.cancel = nil
 	}
-	if p.idleTimer != nil {
-		p.idleTimer.Stop()
-		p.idleTimer = nil
-	}
-	p.queue = nil
-	p.pendingSource = ""
-}
 
-func (p *Processor) enqueueLocked(value string) {
-	chunk := textutil.NormalizeCaption(value)
-	if chunk == "" {
-		return
-	}
-
-	p.queue = append(p.queue, chunk)
-	p.committedAnchor = trailingAnchor(chunk, p.config.ForceChunkAnchorWords)
-}
-
-func (p *Processor) scheduleIdleFlushLocked() {
-	p.idleVersion++
-	if p.idleTimer != nil {
-		p.idleTimer.Stop()
-		p.idleTimer = nil
-	}
-	if p.pendingSource == "" {
-		return
-	}
-
-	version := p.idleVersion
-	p.idleTimer = time.AfterFunc(p.config.IdleFlushDelay, func() {
-		p.flushPending(version)
-	})
-}
-
-func (p *Processor) flushPending(version uint64) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	if version != p.idleVersion || p.pendingSource == "" {
-		return
-	}
-
-	p.enqueueLocked(p.pendingSource)
-	p.pendingSource = ""
-	p.idleTimer = nil
-	p.startNextLocked()
+	p.queued = ""
+	p.active = ""
+	p.translating = false
 }
 
 func (p *Processor) startNextLocked() {
-	if p.translating || len(p.queue) == 0 || p.parent == nil {
+	if p.translating || p.parent == nil || p.queued == "" {
 		return
 	}
 
-	source := p.queue[0]
-	p.queue = p.queue[1:]
+	source := p.queued
+	p.queued = ""
+
 	ctx, cancel := context.WithTimeout(p.parent, p.config.RequestTimeout)
 	p.cancel = cancel
+	p.active = source
 	p.translating = true
 
-	go p.translateChunk(source, ctx, cancel)
+	go p.translateSnapshot(source, ctx, cancel)
 }
 
-func (p *Processor) translateChunk(source string, requestCtx context.Context, release context.CancelFunc) {
+func (p *Processor) translateSnapshot(source string, requestCtx context.Context, release context.CancelFunc) {
 	defer release()
 
 	translated, err := p.translator.Translate(requestCtx, source)
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
-			p.finishChunk("")
+			p.finishSnapshot(source, "", true)
 			return
 		}
 
-		p.finishChunk(source)
+		p.finishSnapshot(source, source, false)
 		return
 	}
 
-	translated = textutil.NormalizeCaption(translated)
+	translated = textutil.NormalizeCaptionSnapshot(translated)
 	if translated == "" {
 		translated = source
 	}
 
-	p.finishChunk(translated)
+	p.finishSnapshot(source, translated, false)
 }
 
-func (p *Processor) finishChunk(value string) {
-	if value != "" {
-		p.output.PushCaption(value)
-	}
+func (p *Processor) finishSnapshot(source string, value string, canceled bool) {
+	value = textutil.NormalizeCaptionSnapshot(value)
+	shouldOutput := false
 
 	p.mu.Lock()
-	defer p.mu.Unlock()
+	if p.active == source {
+		p.active = ""
+	}
 
 	if p.cancel != nil {
 		p.cancel = nil
 	}
+	if !canceled && value != "" && source == p.lastInput {
+		shouldOutput = true
+	}
+
 	p.translating = false
 	p.startNextLocked()
+	p.mu.Unlock()
+
+	if shouldOutput {
+		p.output.PushCaption(value)
+	}
 }

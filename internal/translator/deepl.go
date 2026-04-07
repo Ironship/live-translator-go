@@ -42,12 +42,20 @@ func (c *DeepLClient) Translate(ctx context.Context, input string) (string, erro
 		return "", fmt.Errorf("DeepL API key is empty")
 	}
 
+	inputLines := splitDeepLInputLines(trimmedInput)
+	if len(inputLines) == 0 {
+		return "", nil
+	}
+
 	form := url.Values{}
-	form.Add("text", trimmedInput)
+	for _, line := range inputLines {
+		form.Add("text", line)
+	}
 	form.Set("target_lang", deepLTargetLanguage(c.config.TargetLanguage))
 	if sourceLang := deepLSourceLanguage(c.config.SourceLanguage); sourceLang != "" {
 		form.Set("source_lang", sourceLang)
 	}
+	form.Set("preserve_formatting", "1")
 
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, normalizeDeepLEndpoint(c.config.BaseURL), strings.NewReader(form.Encode()))
 	if err != nil {
@@ -75,12 +83,36 @@ func (c *DeepLClient) Translate(ctx context.Context, input string) (string, erro
 		return "", fmt.Errorf("DeepL response contained no translations")
 	}
 
-	translated := strings.TrimSpace(parsed.Translations[0].Text)
-	if translated == "" {
+	translations := make([]string, 0, len(parsed.Translations))
+	for _, item := range parsed.Translations {
+		translatedLine := strings.TrimSpace(item.Text)
+		if translatedLine != "" {
+			translations = append(translations, translatedLine)
+		}
+	}
+
+	translated := strings.Join(translations, "\n")
+	if strings.TrimSpace(translated) == "" {
 		return "", fmt.Errorf("DeepL response contained empty translation")
 	}
 
 	return translated, nil
+}
+
+func splitDeepLInputLines(value string) []string {
+	normalized := strings.ReplaceAll(strings.TrimSpace(value), "\r\n", "\n")
+	normalized = strings.ReplaceAll(normalized, "\r", "\n")
+	rawLines := strings.Split(normalized, "\n")
+
+	lines := make([]string, 0, len(rawLines))
+	for _, rawLine := range rawLines {
+		line := strings.TrimSpace(rawLine)
+		if line != "" {
+			lines = append(lines, line)
+		}
+	}
+
+	return lines
 }
 
 func normalizeDeepLEndpoint(baseURL string) string {

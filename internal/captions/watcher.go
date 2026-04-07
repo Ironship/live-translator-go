@@ -29,9 +29,17 @@ type Event struct {
 	CapturedAt time.Time
 }
 
+type Diagnostics struct {
+	ProcessRunning bool
+	WindowFound    bool
+	WindowHung     bool
+	CaptionFound   bool
+}
+
 type Watcher struct {
 	config              Config
 	availabilityChanged func(bool)
+	diagnosticsChanged  func(Diagnostics)
 }
 
 type nativeWatcher struct {
@@ -41,7 +49,11 @@ type nativeWatcher struct {
 	windowElement  *win32.IUIAutomationElement
 	captionElement *win32.IUIAutomationElement
 	lastText       string
+	staleText      string
+	stalePolls     int
 }
+
+const staleCaptionRebindPolls = 24
 
 func NewWatcher(config Config) *Watcher {
 	return &Watcher{config: config}
@@ -49,6 +61,10 @@ func NewWatcher(config Config) *Watcher {
 
 func (w *Watcher) OnAvailabilityChanged(handler func(bool)) {
 	w.availabilityChanged = handler
+}
+
+func (w *Watcher) OnDiagnosticsChanged(handler func(Diagnostics)) {
+	w.diagnosticsChanged = handler
 }
 
 func (w *Watcher) Run(ctx context.Context, out chan<- Event) error {
@@ -73,15 +89,27 @@ func (w *Watcher) Run(ctx context.Context, out chan<- Event) error {
 	}
 	availabilityKnown := false
 	lastAvailable := false
+	diagnosticsKnown := false
+	lastDiagnostics := Diagnostics{}
 
 	ticker := time.NewTicker(native.config.PollInterval)
 	defer ticker.Stop()
 
 	for {
-		text, available, err := native.readCaption()
+		text, diagnostics, err := native.readCaption()
 		if err != nil {
 			return err
 		}
+
+		if !diagnosticsKnown || diagnostics != lastDiagnostics {
+			diagnosticsKnown = true
+			lastDiagnostics = diagnostics
+			if w.diagnosticsChanged != nil {
+				w.diagnosticsChanged(diagnostics)
+			}
+		}
+
+		available := diagnostics.WindowFound && !diagnostics.WindowHung
 
 		if !availabilityKnown || available != lastAvailable {
 			availabilityKnown = true
@@ -143,11 +171,21 @@ func newAutomationClient() (*win32.IUIAutomation, error) {
 	return automation, nil
 }
 
-func (w *nativeWatcher) readCaption() (string, bool, error) {
+func (w *nativeWatcher) readCaption() (string, Diagnostics, error) {
+	diagnostics := Diagnostics{}
 	hwnd := findWindow(w.config.WindowClassName, w.config.ProcessName)
 	if hwnd == 0 {
+		diagnostics.ProcessRunning = processRunningByName(w.config.ProcessName)
 		w.releaseBindings()
-		return "", false, nil
+		w.lastText = ""
+		return "", diagnostics, nil
+	}
+	diagnostics.ProcessRunning = true
+	diagnostics.WindowFound = true
+	if win32.IsHungAppWindow(hwnd) != 0 {
+		w.releaseBindings()
+		diagnostics.WindowHung = true
+		return "", diagnostics, nil
 	}
 
 	if hwnd != w.windowHandle || w.windowElement == nil {
@@ -157,7 +195,7 @@ func (w *nativeWatcher) readCaption() (string, bool, error) {
 		var windowElement *win32.IUIAutomationElement
 		hr := w.automation.ElementFromHandle(hwnd, &windowElement)
 		if win32.FAILED(hr) {
-			return "", false, fmt.Errorf("bind Live Captions window: %s", win32.HRESULT_ToString(hr))
+			return "", diagnostics, fmt.Errorf("bind Live Captions window: %s", win32.HRESULT_ToString(hr))
 		}
 		w.windowElement = windowElement
 	}
@@ -165,7 +203,7 @@ func (w *nativeWatcher) readCaption() (string, bool, error) {
 	if w.captionElement == nil {
 		condition, err := createStringCondition(w.automation, win32.UIA_AutomationIdPropertyId, w.config.AutomationID)
 		if err != nil {
-			return "", true, err
+			return "", diagnostics, err
 		}
 		defer condition.Release()
 
@@ -173,21 +211,24 @@ func (w *nativeWatcher) readCaption() (string, bool, error) {
 		hr := w.windowElement.FindFirst(win32.TreeScope_Descendants, condition, &captionElement)
 		if win32.FAILED(hr) {
 			w.releaseCaptionElement()
-			return "", true, nil
+			return "", diagnostics, nil
 		}
 		if captionElement == nil {
-			return "", true, nil
+			return "", diagnostics, nil
 		}
 		w.captionElement = captionElement
 	}
+	diagnostics.CaptionFound = w.captionElement != nil
 
 	text, ok := currentElementName(w.captionElement)
 	if !ok {
 		w.releaseCaptionElement()
-		return "", true, nil
+		return "", diagnostics, nil
 	}
 
-	return strings.TrimSpace(text), true, nil
+	trimmed := strings.TrimSpace(text)
+	w.trackStaleness(trimmed)
+	return trimmed, diagnostics, nil
 }
 
 func (w *nativeWatcher) releaseBindings() {
@@ -197,6 +238,8 @@ func (w *nativeWatcher) releaseBindings() {
 		w.windowElement = nil
 	}
 	w.windowHandle = 0
+	w.staleText = ""
+	w.stalePolls = 0
 }
 
 func (w *nativeWatcher) releaseCaptionElement() {
@@ -204,6 +247,28 @@ func (w *nativeWatcher) releaseCaptionElement() {
 		w.captionElement.Release()
 		w.captionElement = nil
 	}
+}
+
+func (w *nativeWatcher) trackStaleness(text string) {
+	if text == "" {
+		w.staleText = ""
+		w.stalePolls = 0
+		return
+	}
+
+	if text != w.staleText {
+		w.staleText = text
+		w.stalePolls = 0
+		return
+	}
+
+	w.stalePolls++
+	if w.stalePolls < staleCaptionRebindPolls {
+		return
+	}
+
+	w.releaseBindings()
+	w.stalePolls = 0
 }
 
 func currentElementName(element *win32.IUIAutomationElement) (string, bool) {
@@ -285,4 +350,42 @@ func processNameByID(processID uint32) (string, error) {
 func normalizeProcessName(value string) string {
 	trimmed := strings.TrimSpace(strings.ToLower(filepath.Base(value)))
 	return strings.TrimSuffix(trimmed, ".exe")
+}
+
+func inspectDiagnostics(config Config) Diagnostics {
+	config = withDefaults(config)
+	hwnd := findWindow(config.WindowClassName, config.ProcessName)
+	if hwnd == 0 {
+		return Diagnostics{ProcessRunning: processRunningByName(config.ProcessName)}
+	}
+
+	return Diagnostics{
+		ProcessRunning: true,
+		WindowFound:    true,
+		WindowHung:     win32.IsHungAppWindow(hwnd) != 0,
+	}
+}
+
+func processRunningByName(expected string) bool {
+	normalizedExpected := normalizeProcessName(expected)
+	if normalizedExpected == "" {
+		return false
+	}
+
+	snapshot, _ := win32.CreateToolhelp32Snapshot(win32.TH32CS_SNAPPROCESS, 0)
+	if snapshot == win32.INVALID_HANDLE_VALUE {
+		return false
+	}
+	defer win32.CloseHandle(snapshot)
+
+	entry := win32.PROCESSENTRY32W{DwSize: uint32(unsafe.Sizeof(win32.PROCESSENTRY32W{}))}
+	ok, _ := win32.Process32FirstW(snapshot, &entry)
+	for ok != 0 {
+		if normalizeProcessName(win32.WstrToStr(entry.SzExeFile[:])) == normalizedExpected {
+			return true
+		}
+		ok, _ = win32.Process32NextW(snapshot, &entry)
+	}
+
+	return false
 }

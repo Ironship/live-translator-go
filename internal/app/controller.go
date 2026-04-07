@@ -160,7 +160,11 @@ func (c *Controller) ApplySettings(values settings.Values) {
 }
 
 func (c *Controller) OpenLiveCaptions() {
-	mode, err := captions.OpenLiveCaptions()
+	mode, err := captions.OpenLiveCaptionsWithRecovery(captions.Config{
+		ProcessName:     c.CurrentSettings().CaptionProcessName,
+		WindowClassName: c.CurrentSettings().CaptionWindowClass,
+		AutomationID:    c.CurrentSettings().CaptionAutomationID,
+	})
 	if err != nil {
 		c.overlay.SetStatus("Unable to open Live Captions automatically")
 		c.overlay.SetText(err.Error())
@@ -171,11 +175,20 @@ func (c *Controller) OpenLiveCaptions() {
 	time.AfterFunc(1200*time.Millisecond, c.overlay.BringToFront)
 
 	if !settings.IsConfigured(c.CurrentSettings()) {
+		if mode == captions.LaunchModeRestarted {
+			c.overlay.SetStatus("Live Captions restart requested. Finish provider setup, then the app will start watching automatically.")
+			return
+		}
 		if mode == captions.LaunchModeDirect {
 			c.overlay.SetStatus("Live Captions launch requested. Finish provider setup, then the app will start watching automatically.")
 			return
 		}
 		c.overlay.SetStatus("Accessibility settings opened. Turn on Live Captions there, then finish provider setup.")
+		return
+	}
+
+	if mode == captions.LaunchModeRestarted {
+		c.overlay.SetStatus("Live Captions restart requested. The watcher will attach automatically when the window appears again.")
 		return
 	}
 
