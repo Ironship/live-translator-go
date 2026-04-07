@@ -1,66 +1,66 @@
 # Live Translator Go
 
-Prosty desktopowy program dla Windows 11, ktory czyta tekst z Windows Live Captions, tlumaczy go i pokazuje wynik od razu w tym samym oknie.
+Simple Windows 11 desktop app that reads text from Windows Live Captions, translates it, and shows the result in the same window.
 
-Przeplyw jest celowo prosty:
+The flow is intentionally minimal:
 
-`Windows Live Captions -> tlumaczenie -> podglad na ekranie`
+`Windows Live Captions -> translation -> on-screen preview`
 
-## Do czego to sluzy
+## What It Is For
 
-Program jest dla osob, ktore chca szybko zobaczyc tlumaczenie napisow generowanych przez Windows Live Captions bez budowania osobnego pipeline ASR, serwera albo przegladarkowej aplikacji.
+This project is for people who want fast translated captions from Windows Live Captions without building a separate ASR pipeline, backend service, or browser app.
 
-Najwazniejsze zastosowania:
+Typical use cases:
 
-- tlumaczenie mowy na zywo podczas spotkan, filmow i prezentacji,
-- testowanie lokalnych providerow takich jak Ollama albo LM Studio,
-- prosty podglad napisow i tlumaczenia w jednym oknie,
-- minimalna konfiguracja bez dodatkowej bazy danych i bez drugiego procesu UI.
+- translating live speech during meetings, videos, and presentations,
+- testing local providers such as Ollama or LM Studio,
+- keeping captions and translated output in one desktop window,
+- using a small local tool with minimal setup and no extra database.
 
-## Zasada KISS
+## KISS Scope
 
-Ten projekt ma byc zgodny z KISS. Obecna wersja trzyma sie kilku prostych zasad:
+This project is meant to stay close to KISS. The current version follows a few strict rules:
 
-- jedno glowne okno GUI,
-- jedno zrodlo transkrypcji: Windows Live Captions,
-- jeden lokalny plik ustawien `setting.json`,
-- tylko czterech providerow: Google, DeepL, Ollama, LM Studio,
-- bez bazy historii, bez instalatora, bez uslug w tle.
+- one main GUI window,
+- one transcription source: Windows Live Captions,
+- one local settings file: `setting.json`,
+- only four providers: Google, DeepL, Ollama, and LM Studio,
+- no history database, installer, or background service.
 
-## Co program robi
+## What The Program Does
 
-- odczytuje tekst z systemowego okna Live Captions przez Windows UI Automation,
-- wysyla tekst do wybranego providera tlumaczen,
-- pokazuje wynik w ciemnym oknie z podgladem,
-- pozwala zmienic providera i parametry w panelu `Settings`,
-- zapisuje lokalne ustawienia do `setting.json`.
+- reads text from the system Live Captions window through Windows UI Automation,
+- sends text to the selected translation provider,
+- shows the result in a dark preview window,
+- lets you change provider and runtime settings inside the `Settings` panel,
+- saves local settings to `setting.json`.
 
-## Czego program nie robi
+## What It Does Not Do
 
-- nie implementuje wlasnego speech-to-text,
-- nie wymaga serwera backendowego,
-- nie prowadzi historii w bazie danych,
-- nie probuje byc pelnym kombajnem do napisow.
+- it does not implement its own speech-to-text engine,
+- it does not require a backend server,
+- it does not keep translation history in a database,
+- it does not try to be a full subtitle suite.
 
-## Wymagania
+## Requirements
 
-- Windows 11 z dostepnym Windows Live Captions,
-- Go 1.22+ do uruchamiania ze zrodel,
-- skonfigurowany provider tylko wtedy, gdy nie uzywasz Google.
+- Windows 11 with Windows Live Captions available,
+- Go 1.22+ if you want to run from source,
+- provider configuration only if you are not using Google.
 
-## Szybki start
+## Quick Start
 
-Uruchom z katalogu projektu:
+Run from the project directory:
 
 ```powershell
 go run ./cmd/live-translator-go
 ```
 
-Jesli Live Captions nie jest wlaczone, uruchom je z poziomu Windows i poczekaj, az aplikacja podepnie sie do okna.
+If Live Captions is not enabled yet, start it in Windows and wait for the app to attach to the window.
 
-Google dziala od razu. Dla innych providerow skonfiguruj dane w `Settings`.
+Google works out of the box. For other providers, configure the values in `Settings`.
 
-Przyklad dla Ollama:
+Example for Ollama:
 
 ```powershell
 $env:LIVE_TRANSLATOR_PROVIDER = "Ollama"
@@ -71,22 +71,22 @@ go run ./cmd/live-translator-go
 
 ## Build
 
-Desktopowy build bez widocznego okna konsoli:
+Desktop build without a visible console window:
 
 ```powershell
 go build -ldflags="-H windowsgui" ./cmd/live-translator-go
 ```
 
-## Struktura projektu
+## Project Structure
 
-- `cmd/live-translator-go` - punkt startowy aplikacji,
-- `internal/captions` - odczyt tekstu z Live Captions,
-- `internal/translator` - providerzy tlumaczen,
-- `internal/pipeline` - laczenie i przetwarzanie wejscia,
-- `internal/overlay` - glowne okno i podglad,
-- `internal/app` - skladanie konfiguracji i logiki aplikacji,
-- `setting.json` - lokalne ustawienia uruchomieniowe, nieprzeznaczone do commita.
+- `cmd/live-translator-go` - application entry point,
+- `internal/captions` - Live Captions text capture,
+- `internal/translator` - translation providers,
+- `internal/pipeline` - input coalescing and processing,
+- `internal/overlay` - main window and preview,
+- `internal/app` - app wiring and settings flow,
+- `setting.json` - local runtime settings, intentionally not committed.
 
-## Licencja
+## License
 
-Projekt jest udostepniony na licencji GPL-3. Zobacz plik `LICENSE`.
+This project is released under GPL-3. See `LICENSE`.
