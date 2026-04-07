@@ -1,0 +1,17 @@
+# Local runtime configuration
+setting.json
+
+# Build artifacts
+*.exe
+*.dll
+*.test
+
+# Temporary screenshots and debug files
+tmp-*
+*.log
+
+# Local databases
+*.db
+
+# Editor settings
+.vscode/
