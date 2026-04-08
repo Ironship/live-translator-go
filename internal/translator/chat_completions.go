@@ -17,6 +17,7 @@ type Config struct {
 	BaseURL        string
 	APIKey         string
 	Model          string
+	Context        string
 	SourceLanguage string
 	TargetLanguage string
 }
@@ -143,9 +144,19 @@ func (c *ChatCompletionsClient) systemPrompt() string {
 		targetLanguage = "English"
 	}
 
+	translationContext := strings.TrimSpace(c.config.Context)
+	if translationContext == "" {
+		return fmt.Sprintf(
+			"You translate live captions from %s to %s. Return only the translated text. Preserve sentence order and intent. Do not add commentary or quotation marks.",
+			sourceLanguage,
+			targetLanguage,
+		)
+	}
+
 	return fmt.Sprintf(
-		"You translate live captions from %s to %s. Return only the translated text. Preserve sentence order and intent. Do not add commentary or quotation marks.",
+		"You translate live captions from %s to %s. Return only the translated text. Preserve sentence order and intent. Do not add commentary or quotation marks. Use this additional context to resolve ambiguity: %s",
 		sourceLanguage,
 		targetLanguage,
+		translationContext,
 	)
 }

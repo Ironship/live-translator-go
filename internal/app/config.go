@@ -39,6 +39,7 @@ func ConfigFromSettings(values settings.Values) Config {
 			BaseURL:        values.BaseURL,
 			APIKey:         values.APIKey,
 			Model:          values.Model,
+			Context:        values.TranslationContext,
 			SourceLanguage: values.SourceLanguage,
 			TargetLanguage: values.TargetLanguage,
 		},

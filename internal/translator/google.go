@@ -50,7 +50,7 @@ func (c *GoogleClient) Translate(ctx context.Context, input string) (string, err
 
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		body, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
-		return "", fmt.Errorf("Google Translate returned %s: %s", response.Status, strings.TrimSpace(string(body)))
+		return "", fmt.Errorf("google translate returned %s: %s", response.Status, strings.TrimSpace(string(body)))
 	}
 
 	var payload any
@@ -60,7 +60,7 @@ func (c *GoogleClient) Translate(ctx context.Context, input string) (string, err
 
 	translated := extractGoogleTranslation(payload)
 	if translated == "" {
-		return "", fmt.Errorf("Google Translate response contained no translated text")
+		return "", fmt.Errorf("google translate response contained no translated text")
 	}
 
 	return translated, nil

@@ -306,7 +306,7 @@ func New(config Config) (*Window, error) {
 		return nil, err
 	}
 	openCaptionsButton.SetFont(buttonFont)
-	_ = openCaptionsButton.SetText("Captions")
+	_ = openCaptionsButton.SetText("Start")
 	if err := openCaptionsButton.SetMinMaxSize(walk.Size{86, 34}, walk.Size{16777215, 34}); err != nil {
 		return nil, err
 	}

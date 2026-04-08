@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
-	"unsafe"
 
 	"github.com/zzl/go-win32api/v2/win32"
 )
@@ -141,8 +140,8 @@ func openCommandTarget(target string, parameters string) error {
 		nil,
 		win32.SW_SHOWNORMAL,
 	)
-	if uintptr(unsafe.Pointer(result)) <= 32 {
-		return fmt.Errorf("ShellExecute returned %d", uintptr(unsafe.Pointer(result)))
+	if result <= 32 {
+		return fmt.Errorf("shell execute returned %d", result)
 	}
 	return nil
 }

@@ -59,42 +59,6 @@ func pendingFromCurrentAfterAnchor(anchor string, current string) string {
 	return strings.Join(currentTokens[nextStart:], " ")
 }
 
-func trailingAnchor(value string, maxWords int) string {
-	value = textutil.NormalizeCaption(value)
-	if value == "" {
-		return ""
-	}
-
-	words := strings.Fields(value)
-	if len(words) == 0 {
-		return ""
-	}
-	if maxWords <= 0 || len(words) <= maxWords {
-		return strings.Join(words, " ")
-	}
-
-	return strings.Join(words[len(words)-maxWords:], " ")
-}
-
-func consumeReadyChunks(value string, config Config) ([]string, string) {
-	value = textutil.NormalizeCaption(value)
-	if value == "" {
-		return nil, ""
-	}
-
-	chunks, remainder := consumeSentenceChunks(value)
-	for {
-		chunk, next := splitForcedChunk(remainder, config.ForceChunkWords, config.ForceChunkChars, config.ForceChunkAnchorWords)
-		if chunk == "" {
-			break
-		}
-		chunks = append(chunks, chunk)
-		remainder = next
-	}
-
-	return chunks, remainder
-}
-
 func consumeSentenceChunks(value string) ([]string, string) {
 	runes := []rune(strings.TrimSpace(value))
 	if len(runes) == 0 {

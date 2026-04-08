@@ -30,8 +30,9 @@ type settingsPanel struct {
 	apiKeyRow         *settingsFieldRow
 	baseURLRow        *settingsFieldRow
 	modelRow          *settingsFieldRow
+	contextRow        *settingsFieldRow
 	sourceLangRow     *settingsFieldRow
-	targetLangRow     *settingsFieldRow
+	targetLangBox     *walk.ComboBox
 	pollMsRow         *settingsFieldRow
 	timeoutMsRow      *settingsFieldRow
 	processRow        *settingsFieldRow
@@ -221,6 +222,13 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	if err != nil {
 		return nil, err
 	}
+	panel.contextRow, err = addSettingsLineEditRow(translationGroup, "Translation context", current.TranslationContext, inputBrush, sectionBrush)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := addSettingsGroupNote(translationGroup, "Optional: used by Ollama and LM Studio as additional context in the translation prompt."); err != nil {
+		return nil, err
+	}
 
 	languagesGroup, err := newSettingsSection(translationPage, "Languages", sectionBrush)
 	if err != nil {
@@ -233,7 +241,8 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	if err != nil {
 		return nil, err
 	}
-	panel.targetLangRow, err = addSettingsLineEditRow(languagesGroup, "Target language", current.TargetLanguage, inputBrush, sectionBrush)
+	targetLanguageOptions := buildTargetLanguageOptions(current.TargetLanguage)
+	panel.targetLangBox, err = addSettingsComboBoxRow(languagesGroup, "Target language", targetLanguageOptions, translator.CanonicalTargetLanguage(current.TargetLanguage), inputBrush, sectionBrush)
 	if err != nil {
 		return nil, err
 	}
@@ -427,15 +436,16 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 		})
 	}
 
-	applyButton.Clicked().Attach(func() {
+	collectAndValidate := func() (settings.Values, bool) {
 		updated, validationMessage := collectPanelSettings(
 			panel.base,
 			panel.selectedProvider,
 			panel.apiKeyRow.edit.Text(),
 			panel.baseURLRow.edit.Text(),
 			panel.modelRow.edit.Text(),
+			panel.contextRow.edit.Text(),
 			panel.sourceLangRow.edit.Text(),
-			panel.targetLangRow.edit.Text(),
+			panel.selectedTargetLanguage(),
 			panel.pollMsRow.edit.Text(),
 			panel.timeoutMsRow.edit.Text(),
 			panel.processRow.edit.Text(),
@@ -450,10 +460,18 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 		)
 		if validationMessage != "" {
 			panel.showError(validationMessage)
-			return
+			return settings.Values{}, false
 		}
 		if !settings.IsConfigured(updated) {
 			panel.showError(translator.MissingConfigurationMessage(updated.Provider))
+			return settings.Values{}, false
+		}
+		return updated, true
+	}
+
+	applyButton.Clicked().Attach(func() {
+		updated, ok := collectAndValidate()
+		if !ok {
 			return
 		}
 		if panel.onSave != nil {
@@ -467,32 +485,8 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	})
 
 	testButton.Clicked().Attach(func() {
-		updated, validationMessage := collectPanelSettings(
-			panel.base,
-			panel.selectedProvider,
-			panel.apiKeyRow.edit.Text(),
-			panel.baseURLRow.edit.Text(),
-			panel.modelRow.edit.Text(),
-			panel.sourceLangRow.edit.Text(),
-			panel.targetLangRow.edit.Text(),
-			panel.pollMsRow.edit.Text(),
-			panel.timeoutMsRow.edit.Text(),
-			panel.processRow.edit.Text(),
-			panel.windowClassRow.edit.Text(),
-			panel.automationIDRow.edit.Text(),
-			panel.fontSizeRow.edit.Text(),
-			panel.textColorRow.edit.Text(),
-			panel.alternateColorRow.edit.Text(),
-			panel.alternateLinesBox.Checked(),
-			panel.alwaysOnTopBox.Checked(),
-			panel.clickThroughBox.Checked(),
-		)
-		if validationMessage != "" {
-			panel.showError(validationMessage)
-			return
-		}
-		if !settings.IsConfigured(updated) {
-			panel.showError(translator.MissingConfigurationMessage(updated.Provider))
+		updated, ok := collectAndValidate()
+		if !ok {
 			return
 		}
 
@@ -508,6 +502,7 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 				BaseURL:        values.BaseURL,
 				APIKey:         values.APIKey,
 				Model:          values.Model,
+				Context:        values.TranslationContext,
 				SourceLanguage: values.SourceLanguage,
 				TargetLanguage: values.TargetLanguage,
 			})
@@ -549,8 +544,11 @@ func (p *settingsPanel) Load(values settings.Values) {
 	_ = p.apiKeyRow.edit.SetText(values.APIKey)
 	_ = p.baseURLRow.edit.SetText(values.BaseURL)
 	_ = p.modelRow.edit.SetText(values.Model)
+	_ = p.contextRow.edit.SetText(values.TranslationContext)
 	_ = p.sourceLangRow.edit.SetText(values.SourceLanguage)
-	_ = p.targetLangRow.edit.SetText(values.TargetLanguage)
+	targetLanguageOptions := buildTargetLanguageOptions(values.TargetLanguage)
+	_ = p.targetLangBox.SetModel(targetLanguageOptions)
+	_ = p.targetLangBox.SetCurrentIndex(indexOfString(targetLanguageOptions, translator.CanonicalTargetLanguage(values.TargetLanguage)))
 	_ = p.pollMsRow.edit.SetText(strconv.Itoa(values.CaptionPollMs))
 	_ = p.timeoutMsRow.edit.SetText(strconv.Itoa(values.RequestTimeoutMs))
 	_ = p.processRow.edit.SetText(values.CaptionProcessName)
@@ -576,6 +574,14 @@ func (p *settingsPanel) updateProviderRows(provider string) {
 	p.baseURLRow.row.SetVisible(translator.UsesBaseURL(normalized))
 	_ = p.modelRow.label.SetText(translator.ModelLabel(normalized))
 	p.modelRow.row.SetVisible(translator.UsesModel(normalized))
+}
+
+func (p *settingsPanel) selectedTargetLanguage() string {
+	if p.targetLangBox == nil {
+		return "English"
+	}
+
+	return translator.CanonicalTargetLanguage(p.targetLangBox.Text())
 }
 
 func (p *settingsPanel) updateProviderButtons(provider string) {
@@ -726,6 +732,80 @@ func addSettingsLineEditRow(parent walk.Container, labelText, value string, inpu
 	return &settingsFieldRow{row: row, label: label, edit: edit}, nil
 }
 
+func addSettingsComboBoxRow(parent walk.Container, labelText string, options []string, value string, inputBrush *walk.SolidColorBrush, rowBrush walk.Brush) (*walk.ComboBox, error) {
+	row, err := walk.NewComposite(parent)
+	if err != nil {
+		return nil, err
+	}
+	if rowBrush != nil {
+		row.SetBackground(rowBrush)
+	}
+	layout := walk.NewHBoxLayout()
+	if err := layout.SetSpacing(10); err != nil {
+		return nil, err
+	}
+	if err := layout.SetMargins(walk.Margins{}); err != nil {
+		return nil, err
+	}
+	if err := row.SetLayout(layout); err != nil {
+		return nil, err
+	}
+
+	label, err := walk.NewLabel(row)
+	if err != nil {
+		return nil, err
+	}
+	label.SetTextColor(ui.TextPrimary)
+	_ = label.SetText(labelText)
+	if err := label.SetMinMaxSize(walk.Size{labelWidth, 0}, walk.Size{labelWidth, maxFieldHeight}); err != nil {
+		return nil, err
+	}
+	if err := label.SetAlignment(walk.AlignHNearVCenter); err != nil {
+		return nil, err
+	}
+
+	box, err := walk.NewComboBox(row)
+	if err != nil {
+		return nil, err
+	}
+	if err := box.SetModel(options); err != nil {
+		return nil, err
+	}
+	if err := box.SetCurrentIndex(indexOfString(options, value)); err != nil {
+		return nil, err
+	}
+	if inputBrush != nil {
+		box.SetBackground(inputBrush)
+	}
+	ui.ApplyNativeDarkTheme(box)
+	if err := layout.SetStretchFactor(box, 1); err != nil {
+		return nil, err
+	}
+
+	return box, nil
+}
+
+func buildTargetLanguageOptions(currentValue string) []string {
+	options := translator.TargetLanguageOptions()
+	current := translator.CanonicalTargetLanguage(currentValue)
+	if current == "" || indexOfString(options, current) >= 0 {
+		return options
+	}
+
+	return append([]string{current}, options...)
+}
+
+func indexOfString(options []string, value string) int {
+	normalized := strings.TrimSpace(value)
+	for index, option := range options {
+		if strings.EqualFold(strings.TrimSpace(option), normalized) {
+			return index
+		}
+	}
+
+	return 0
+}
+
 func addSettingsProviderRow(parent walk.Container, options []string, value string, rowBrush walk.Brush) ([]*walk.PushButton, error) {
 	row, err := walk.NewComposite(parent)
 	if err != nil {
@@ -779,7 +859,6 @@ func addSettingsProviderRow(parent walk.Container, options []string, value strin
 		return nil, err
 	}
 
-	selected := translator.NormalizeProvider(value)
 	buttons := make([]*walk.PushButton, 0, len(options))
 	for _, option := range options {
 		button, err := walk.NewPushButton(buttonsHost)
@@ -793,61 +872,7 @@ func addSettingsProviderRow(parent walk.Container, options []string, value strin
 		buttons = append(buttons, button)
 	}
 
-	_ = selected
-
 	return buttons, nil
-}
-
-func addSettingsComboBoxRow(parent walk.Container, labelText string, options []string, value string, inputBrush *walk.SolidColorBrush, rowBrush walk.Brush) (*walk.ComboBox, error) {
-	row, err := walk.NewComposite(parent)
-	if err != nil {
-		return nil, err
-	}
-	if rowBrush != nil {
-		row.SetBackground(rowBrush)
-	}
-	layout := walk.NewHBoxLayout()
-	if err := layout.SetSpacing(10); err != nil {
-		return nil, err
-	}
-	if err := layout.SetMargins(walk.Margins{}); err != nil {
-		return nil, err
-	}
-	if err := row.SetLayout(layout); err != nil {
-		return nil, err
-	}
-
-	label, err := walk.NewLabel(row)
-	if err != nil {
-		return nil, err
-	}
-	label.SetTextColor(ui.TextPrimary)
-	_ = label.SetText(labelText)
-	if err := label.SetMinMaxSize(walk.Size{labelWidth, 0}, walk.Size{labelWidth, maxFieldHeight}); err != nil {
-		return nil, err
-	}
-	if err := label.SetAlignment(walk.AlignHNearVCenter); err != nil {
-		return nil, err
-	}
-
-	box, err := walk.NewComboBox(row)
-	if err != nil {
-		return nil, err
-	}
-	if err := box.SetModel(options); err != nil {
-		return nil, err
-	}
-	if err := box.SetCurrentIndex(translator.ProviderIndex(value)); err != nil {
-		return nil, err
-	}
-	if inputBrush != nil {
-		box.SetBackground(inputBrush)
-	}
-	ui.ApplyNativeDarkTheme(box)
-	if err := layout.SetStretchFactor(box, 1); err != nil {
-		return nil, err
-	}
-	return box, nil
 }
 
 func applySettingsProviderDefaults(previousProvider string, nextProvider string, baseURLEdit *walk.LineEdit, modelEdit *walk.LineEdit) {
@@ -881,6 +906,7 @@ func collectPanelSettings(
 	apiKey string,
 	baseURL string,
 	model string,
+	translationContext string,
 	sourceLanguage string,
 	targetLanguage string,
 	pollMs string,
@@ -900,8 +926,9 @@ func collectPanelSettings(
 	updated.APIKey = strings.TrimSpace(apiKey)
 	updated.BaseURL = strings.TrimSpace(baseURL)
 	updated.Model = strings.TrimSpace(model)
+	updated.TranslationContext = strings.TrimSpace(translationContext)
 	updated.SourceLanguage = strings.TrimSpace(sourceLanguage)
-	updated.TargetLanguage = strings.TrimSpace(targetLanguage)
+	updated.TargetLanguage = translator.CanonicalTargetLanguage(targetLanguage)
 	updated.CaptionProcessName = strings.TrimSpace(processName)
 	updated.CaptionWindowClass = strings.TrimSpace(windowClass)
 	updated.CaptionAutomationID = strings.TrimSpace(automationID)

@@ -21,6 +21,7 @@ type Values struct {
 	APIKey              string `json:"apiKey"`
 	BaseURL             string `json:"baseUrl"`
 	Model               string `json:"model"`
+	TranslationContext  string `json:"translationContext"`
 	SourceLanguage      string `json:"sourceLanguage"`
 	TargetLanguage      string `json:"targetLanguage"`
 	CaptionProcessName  string `json:"captionProcessName"`
@@ -45,8 +46,9 @@ func DefaultValues() Values {
 		Provider:            translator.DefaultProvider,
 		BaseURL:             translator.DefaultBaseURL(translator.DefaultProvider),
 		Model:               translator.DefaultModel(translator.DefaultProvider),
+		TranslationContext:  "",
 		SourceLanguage:      "auto",
-		TargetLanguage:      "Polish",
+		TargetLanguage:      "English",
 		CaptionProcessName:  "LiveCaptions",
 		CaptionWindowClass:  "LiveCaptionsDesktopWindow",
 		CaptionAutomationID: "CaptionsTextBlock",
@@ -141,6 +143,7 @@ func Sanitize(values Values) Values {
 	} else {
 		values.Model = strings.TrimSpace(values.Model)
 	}
+	values.TranslationContext = strings.TrimSpace(values.TranslationContext)
 	values.SourceLanguage = defaultString(values.SourceLanguage, defaults.SourceLanguage)
 	values.TargetLanguage = defaultString(values.TargetLanguage, defaults.TargetLanguage)
 	values.CaptionProcessName = defaultString(values.CaptionProcessName, defaults.CaptionProcessName)
@@ -165,6 +168,7 @@ func applyEnvOverrides(values Values) Values {
 	values.APIKey = envString("LIVE_TRANSLATOR_API_KEY", values.APIKey)
 	values.BaseURL = envString("LIVE_TRANSLATOR_BASE_URL", values.BaseURL)
 	values.Model = envString("LIVE_TRANSLATOR_MODEL", values.Model)
+	values.TranslationContext = envString("LIVE_TRANSLATOR_TRANSLATION_CONTEXT", values.TranslationContext)
 	values.SourceLanguage = envString("LIVE_TRANSLATOR_SOURCE_LANGUAGE", values.SourceLanguage)
 	values.TargetLanguage = envString("LIVE_TRANSLATOR_TARGET_LANGUAGE", values.TargetLanguage)
 	values.CaptionProcessName = envString("LIVE_TRANSLATOR_CAPTIONS_PROCESS", values.CaptionProcessName)

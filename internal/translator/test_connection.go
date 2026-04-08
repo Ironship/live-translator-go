@@ -4,6 +4,7 @@ package translator
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -24,7 +25,7 @@ func TestConnection(ctx context.Context, config Config) (string, error) {
 	}
 
 	if !IsConfigured(config.Provider, config.APIKey, config.Model) {
-		return "", fmt.Errorf(MissingConfigurationMessage(config.Provider))
+		return "", errors.New(MissingConfigurationMessage(config.Provider))
 	}
 
 	translated, err := config.NewClient().Translate(ctx, "Connection test")

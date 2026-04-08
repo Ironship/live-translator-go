@@ -33,6 +33,7 @@ This project is meant to stay close to KISS. The current version follows a few s
 - sends text to the selected translation provider,
 - shows the result in a dark preview window,
 - lets you change provider and runtime settings inside the `Settings` panel,
+- lets you provide optional translation context for LLM providers (Ollama / LM Studio),
 - saves local settings to `setting.json`.
 
 ## What It Does Not Do
@@ -66,6 +67,7 @@ Example for Ollama:
 $env:LIVE_TRANSLATOR_PROVIDER = "Ollama"
 $env:LIVE_TRANSLATOR_BASE_URL = "http://localhost:11434/v1"
 $env:LIVE_TRANSLATOR_MODEL = "llama3.1:8b"
+$env:LIVE_TRANSLATOR_TRANSLATION_CONTEXT = "Technical meeting about backend APIs and Kubernetes."
 go run ./cmd/live-translator-go
 ```
 

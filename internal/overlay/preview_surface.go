@@ -446,21 +446,6 @@ func previewLineSignature(lines []previewLine) string {
 	return builder.String()
 }
 
-func blendPreviewColor(primary walk.Color, secondary walk.Color, primaryWeight float64) walk.Color {
-	if primaryWeight < 0 {
-		primaryWeight = 0
-	}
-	if primaryWeight > 1 {
-		primaryWeight = 1
-	}
-	secondaryWeight := 1 - primaryWeight
-
-	red := int(math.Round((float64(primary&0xFF) * primaryWeight) + (float64(secondary&0xFF) * secondaryWeight)))
-	green := int(math.Round((float64((primary>>8)&0xFF) * primaryWeight) + (float64((secondary>>8)&0xFF) * secondaryWeight)))
-	blue := int(math.Round((float64((primary>>16)&0xFF) * primaryWeight) + (float64((secondary>>16)&0xFF) * secondaryWeight)))
-	return walk.RGB(byte(red), byte(green), byte(blue))
-}
-
 func maxInt(left int, right int) int {
 	if left > right {
 		return left

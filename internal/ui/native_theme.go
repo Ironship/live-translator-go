@@ -19,7 +19,10 @@ func ApplyNativeDarkTheme(windows ...nativeThemeWindow) {
 }
 
 func ApplyNativeDarkThemeToFirstChild(windows ...nativeThemeWindow) {
-	theme := syscall.StringToUTF16Ptr(darkModeExplorerTheme)
+	theme := utf16PtrOrNil(darkModeExplorerTheme)
+	if theme == nil {
+		return
+	}
 	for _, window := range windows {
 		if window == nil {
 			continue
@@ -35,7 +38,10 @@ func applyWindowThemeByName(themeName string, windows ...nativeThemeWindow) {
 		return
 	}
 
-	theme := syscall.StringToUTF16Ptr(themeName)
+	theme := utf16PtrOrNil(themeName)
+	if theme == nil {
+		return
+	}
 	for _, window := range windows {
 		if window == nil {
 			continue
@@ -56,4 +62,16 @@ func applyWindowTheme(hwnd win.HWND, theme *uint16) {
 
 	win.SendMessage(hwnd, win.WM_THEMECHANGED, 0, 0)
 	win.InvalidateRect(hwnd, nil, true)
+}
+
+func utf16PtrOrNil(value string) *uint16 {
+	if value == "" {
+		return nil
+	}
+
+	pointer, err := syscall.UTF16PtrFromString(value)
+	if err != nil {
+		return nil
+	}
+	return pointer
 }
