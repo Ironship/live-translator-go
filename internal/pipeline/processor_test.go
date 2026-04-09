@@ -105,6 +105,9 @@ func TestProcessorOutputsOnlyLatestSnapshot(t *testing.T) {
 	processor.Submit(context.Background(), "old snapshot")
 	processor.Submit(context.Background(), "new snapshot")
 
+	// Allow both: "old snapshot" completes first, its output is discarded
+	// (source != lastInput), then "new snapshot" runs and produces output.
+	translator.allow("old snapshot")
 	translator.allow("new snapshot")
 
 	select {

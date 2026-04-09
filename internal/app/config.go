@@ -14,10 +14,11 @@ import (
 )
 
 type Config struct {
-	Captions       captions.Config
-	Translator     translator.Config
-	Overlay        overlay.Config
-	RequestTimeout time.Duration
+	Captions         captions.Config
+	Translator       translator.Config
+	Overlay          overlay.Config
+	RequestTimeout   time.Duration
+	RequestFrequency time.Duration
 }
 
 func LoadSettings() (settings.Values, error) {
@@ -57,7 +58,8 @@ func ConfigFromSettings(values settings.Values) Config {
 			AlwaysOnTop:         values.AlwaysOnTop,
 			ClickThrough:        values.ClickThrough,
 		},
-		RequestTimeout: time.Duration(values.RequestTimeoutMs) * time.Millisecond,
+		RequestTimeout:   time.Duration(values.RequestTimeoutMs) * time.Millisecond,
+		RequestFrequency: time.Duration(values.RequestFrequencyMs) * time.Millisecond,
 	}
 }
 

@@ -29,6 +29,7 @@ type Values struct {
 	CaptionAutomationID string `json:"captionAutomationId"`
 	CaptionPollMs       int    `json:"captionPollMs"`
 	RequestTimeoutMs    int    `json:"requestTimeoutMs"`
+	RequestFrequencyMs  int    `json:"requestFrequencyMs"`
 	FontFamily          string `json:"fontFamily"`
 	FontSize            int    `json:"fontSize"`
 	OverlayHeight       int    `json:"overlayHeight"`
@@ -54,6 +55,7 @@ func DefaultValues() Values {
 		CaptionAutomationID: "CaptionsTextBlock",
 		CaptionPollMs:       350,
 		RequestTimeoutMs:    8000,
+		RequestFrequencyMs:  1500,
 		FontFamily:          "Segoe UI",
 		FontSize:            22,
 		OverlayHeight:       88,

@@ -34,15 +34,16 @@ type Processor struct {
 	translator Translator
 	output     Output
 
-	mu           sync.Mutex
-	parent       context.Context
-	lastInput    string
-	queued       string
-	active       string
-	translating  bool
-	cancel       context.CancelFunc
-	retryPending bool
-	retryCount   int
+	mu            sync.Mutex
+	parent        context.Context
+	lastInput     string
+	queued        string
+	active        string
+	translating   bool
+	cancel        context.CancelFunc
+	retryPending  bool
+	retryCount    int
+	debounceTimer *time.Timer
 }
 
 func NewProcessor(config Config, translator Translator, output Output) *Processor {
@@ -54,6 +55,9 @@ func NewProcessor(config Config, translator Translator, output Output) *Processo
 	}
 	if config.MaxRetriesPerSnapshot <= 0 {
 		config.MaxRetriesPerSnapshot = 2
+	}
+	if config.IdleFlushDelay <= 0 {
+		config.IdleFlushDelay = 1500 * time.Millisecond
 	}
 
 	return &Processor{
@@ -82,16 +86,26 @@ func (p *Processor) Submit(parent context.Context, input string) {
 	p.retryPending = false
 	p.queued = normalized
 
-	if p.translating && p.cancel != nil {
-		p.cancel()
+	// If a translation is already in progress, just queue the text.
+	// When it finishes, startNextLocked() will pick up the latest.
+	if p.translating {
+		return
 	}
 
-	p.startNextLocked()
+	// Debounce: wait for text to stabilize before translating.
+	// Live Captions sends a new snapshot every ~0.5s as words are added;
+	// this prevents flooding the LLM with near-identical requests.
+	p.resetDebounceLocked()
 }
 
 func (p *Processor) Close() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+
+	if p.debounceTimer != nil {
+		p.debounceTimer.Stop()
+		p.debounceTimer = nil
+	}
 
 	if p.cancel != nil {
 		p.cancel()
@@ -101,6 +115,20 @@ func (p *Processor) Close() {
 	p.queued = ""
 	p.active = ""
 	p.translating = false
+}
+
+// resetDebounceLocked resets (or starts) the debounce timer.
+// Must be called with p.mu held.
+func (p *Processor) resetDebounceLocked() {
+	if p.debounceTimer != nil {
+		p.debounceTimer.Stop()
+	}
+	p.debounceTimer = time.AfterFunc(p.config.IdleFlushDelay, func() {
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		p.debounceTimer = nil
+		p.startNextLocked()
+	})
 }
 
 func (p *Processor) startNextLocked() {
@@ -156,9 +184,11 @@ func (p *Processor) finishSnapshot(source string, value string, canceled bool, f
 	if p.cancel != nil {
 		p.cancel = nil
 	}
-	if !canceled && !failed && value != "" && source == p.lastInput {
+	if !canceled && !failed && value != "" {
 		shouldOutput = true
-		p.retryCount = 0
+		if source == p.lastInput {
+			p.retryCount = 0
+		}
 	}
 
 	if failed && source == p.lastInput && p.retryCount < p.config.MaxRetriesPerSnapshot && !p.retryPending {
@@ -169,7 +199,12 @@ func (p *Processor) finishSnapshot(source string, value string, canceled bool, f
 	}
 
 	p.translating = false
-	p.startNextLocked()
+
+	// If there's new text queued, debounce before starting the next
+	// translation to let more words accumulate from Live Captions.
+	if p.queued != "" {
+		p.resetDebounceLocked()
+	}
 	p.mu.Unlock()
 
 	if shouldOutput {

@@ -35,6 +35,7 @@ type settingsPanel struct {
 	targetLangBox     *walk.ComboBox
 	pollMsRow         *settingsFieldRow
 	timeoutMsRow      *settingsFieldRow
+	frequencyMsRow    *settingsFieldRow
 	processRow        *settingsFieldRow
 	windowClassRow    *settingsFieldRow
 	automationIDRow   *settingsFieldRow
@@ -286,6 +287,10 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	if err != nil {
 		return nil, err
 	}
+	panel.frequencyMsRow, err = addSettingsLineEditRow(timingGroup, "Request frequency ms", strconv.Itoa(current.RequestFrequencyMs), inputBrush, sectionBrush)
+	if err != nil {
+		return nil, err
+	}
 
 	appearancePage, err := newSettingsPage(pagesHost, panelBrush)
 	if err != nil {
@@ -448,6 +453,7 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 			panel.selectedTargetLanguage(),
 			panel.pollMsRow.edit.Text(),
 			panel.timeoutMsRow.edit.Text(),
+			panel.frequencyMsRow.edit.Text(),
 			panel.processRow.edit.Text(),
 			panel.windowClassRow.edit.Text(),
 			panel.automationIDRow.edit.Text(),
@@ -551,6 +557,7 @@ func (p *settingsPanel) Load(values settings.Values) {
 	_ = p.targetLangBox.SetCurrentIndex(indexOfString(targetLanguageOptions, translator.CanonicalTargetLanguage(values.TargetLanguage)))
 	_ = p.pollMsRow.edit.SetText(strconv.Itoa(values.CaptionPollMs))
 	_ = p.timeoutMsRow.edit.SetText(strconv.Itoa(values.RequestTimeoutMs))
+	_ = p.frequencyMsRow.edit.SetText(strconv.Itoa(values.RequestFrequencyMs))
 	_ = p.processRow.edit.SetText(values.CaptionProcessName)
 	_ = p.windowClassRow.edit.SetText(values.CaptionWindowClass)
 	_ = p.automationIDRow.edit.SetText(values.CaptionAutomationID)
@@ -911,6 +918,7 @@ func collectPanelSettings(
 	targetLanguage string,
 	pollMs string,
 	timeoutMs string,
+	frequencyMs string,
 	processName string,
 	windowClass string,
 	automationID string,
@@ -947,6 +955,12 @@ func collectPanelSettings(
 		return base, "Request timeout ms musi byc dodatnia liczba calkowita."
 	}
 	updated.RequestTimeoutMs = parsedTimeoutMs
+
+	parsedFrequencyMs, err := strconv.Atoi(strings.TrimSpace(frequencyMs))
+	if err != nil || parsedFrequencyMs <= 0 {
+		return base, "Request frequency ms musi byc dodatnia liczba calkowita."
+	}
+	updated.RequestFrequencyMs = parsedFrequencyMs
 
 	parsedFontSize, err := strconv.Atoi(strings.TrimSpace(fontSize))
 	if err != nil || parsedFontSize <= 0 {
