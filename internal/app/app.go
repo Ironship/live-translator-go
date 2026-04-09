@@ -50,6 +50,12 @@ func Run() error {
 	window.OnToggleAlwaysOnTop(func() {
 		controller.ToggleAlwaysOnTop()
 	})
+	window.OnIncreaseFontSize(func() {
+		controller.AdjustFontSize(1)
+	})
+	window.OnDecreaseFontSize(func() {
+		controller.AdjustFontSize(-1)
+	})
 	window.OnToggleFocusMode(func() {
 		controller.ToggleFocusMode()
 	})

@@ -4,6 +4,7 @@ package pipeline
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -117,5 +118,52 @@ func TestProcessorOutputsOnlyLatestSnapshot(t *testing.T) {
 
 	if values := out.snapshot(); len(values) != 1 {
 		t.Fatalf("expected exactly one output value, got %d (%#v)", len(values), values)
+	}
+}
+
+type retryTranslator struct {
+	mu    sync.Mutex
+	calls int
+}
+
+func (t *retryTranslator) Translate(ctx context.Context, input string) (string, error) {
+	t.mu.Lock()
+	t.calls++
+	callNo := t.calls
+	t.mu.Unlock()
+
+	if callNo == 1 {
+		return "", errors.New("temporary upstream failure")
+	}
+
+	return fmt.Sprintf("tr:%s", input), nil
+}
+
+func TestProcessorRetriesOnFailureWithoutOutputtingSource(t *testing.T) {
+	out := newRecordingOutput()
+	translator := &retryTranslator{}
+	processor := NewProcessor(Config{
+		RequestTimeout:        2 * time.Second,
+		RetryDelay:            25 * time.Millisecond,
+		MaxRetriesPerSnapshot: 2,
+	}, translator, out)
+	defer processor.Close()
+
+	processor.Submit(context.Background(), "hello world")
+
+	select {
+	case got := <-out.ch:
+		if got != "tr:hello world" {
+			t.Fatalf("expected translated output after retry, got %q", got)
+		}
+		if got == "hello world" {
+			t.Fatalf("unexpected raw source fallback output")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatalf("timed out waiting for retried translation output")
+	}
+
+	if values := out.snapshot(); len(values) != 1 {
+		t.Fatalf("expected exactly one output after retry recovery, got %d (%#v)", len(values), values)
 	}
 }

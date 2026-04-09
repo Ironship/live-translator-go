@@ -5,6 +5,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -23,6 +24,11 @@ type Controller struct {
 	values         settings.Values
 	pipelineCancel context.CancelFunc
 }
+
+const (
+	minOverlayFontSize = 12
+	maxOverlayFontSize = 64
+)
 
 func NewController(rootCtx context.Context, overlayWindow *overlay.Window, values settings.Values) *Controller {
 	return &Controller{
@@ -113,6 +119,41 @@ func (c *Controller) ToggleAlwaysOnTop() {
 	}
 
 	c.overlay.SetStatus("Always on top disabled")
+}
+
+func (c *Controller) AdjustFontSize(delta int) {
+	if delta == 0 {
+		return
+	}
+
+	current := c.CurrentSettings()
+	next := current
+	next.FontSize = clampFontSize(current.FontSize + delta)
+	if next.FontSize == current.FontSize {
+		c.overlay.SetStatus(fmt.Sprintf("Font size: %d", current.FontSize))
+		return
+	}
+
+	if err := settings.Save(next); err != nil {
+		c.overlay.SetStatus("Unable to save font size preference")
+		return
+	}
+
+	next = settings.Sanitize(next)
+	c.mu.Lock()
+	c.values = next
+	c.mu.Unlock()
+
+	if c.panel != nil && c.panel.fontSizeRow != nil && c.panel.fontSizeRow.edit != nil && !c.panel.fontSizeRow.edit.IsDisposed() {
+		_ = c.panel.fontSizeRow.edit.SetText(strconv.Itoa(next.FontSize))
+	}
+
+	if err := c.overlay.ApplyConfig(ConfigFromSettings(next).Overlay); err != nil {
+		c.overlay.SetText(fmt.Sprintf("Overlay update error: %v", err))
+		return
+	}
+
+	c.overlay.SetStatus(fmt.Sprintf("Font size: %d", next.FontSize))
 }
 
 func (c *Controller) SaveSettings(updated settings.Values) error {
@@ -214,4 +255,14 @@ func (c *Controller) CurrentSettings() settings.Values {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.values
+}
+
+func clampFontSize(value int) int {
+	if value < minOverlayFontSize {
+		return minOverlayFontSize
+	}
+	if value > maxOverlayFontSize {
+		return maxOverlayFontSize
+	}
+	return value
 }

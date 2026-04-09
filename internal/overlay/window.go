@@ -76,6 +76,8 @@ type Window struct {
 	settingsVisible     bool
 	focusMode           bool
 	alwaysOnTopEnabled  bool
+	increaseFontSize    func()
+	decreaseFontSize    func()
 }
 
 const (
@@ -608,6 +610,44 @@ func New(config Config) (*Window, error) {
 		return nil, err
 	}
 
+	fontIncreaseKeys := []walk.Key{walk.KeyAdd, walk.KeyOEMPlus}
+	for _, key := range fontIncreaseKeys {
+		action := walk.NewAction()
+		if err := action.SetShortcut(walk.Shortcut{Key: key}); err != nil {
+			return nil, err
+		}
+		action.Triggered().Attach(func() {
+			if window.settingsVisible {
+				return
+			}
+			if window.increaseFontSize != nil {
+				window.increaseFontSize()
+			}
+		})
+		if err := window.mainWindow.ShortcutActions().Add(action); err != nil {
+			return nil, err
+		}
+	}
+
+	fontDecreaseKeys := []walk.Key{walk.KeySubtract, walk.KeyOEMMinus}
+	for _, key := range fontDecreaseKeys {
+		action := walk.NewAction()
+		if err := action.SetShortcut(walk.Shortcut{Key: key}); err != nil {
+			return nil, err
+		}
+		action.Triggered().Attach(func() {
+			if window.settingsVisible {
+				return
+			}
+			if window.decreaseFontSize != nil {
+				window.decreaseFontSize()
+			}
+		})
+		if err := window.mainWindow.ShortcutActions().Add(action); err != nil {
+			return nil, err
+		}
+	}
+
 	window.mainWindow.SizeChanged().Attach(func() {
 		if window.mainWindow.IsDisposed() || window.applyingBounds {
 			return
@@ -646,6 +686,14 @@ func (w *Window) OnOpenSpeechRecognition(handler func()) {
 
 func (w *Window) OnToggleAlwaysOnTop(handler func()) {
 	w.alwaysOnTop.Clicked().Attach(handler)
+}
+
+func (w *Window) OnIncreaseFontSize(handler func()) {
+	w.increaseFontSize = handler
+}
+
+func (w *Window) OnDecreaseFontSize(handler func()) {
+	w.decreaseFontSize = handler
 }
 
 func (w *Window) OnToggleFocusMode(handler func()) {
