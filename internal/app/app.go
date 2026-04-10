@@ -60,7 +60,7 @@ func Run() error {
 		controller.ToggleFocusMode()
 	})
 	window.OnClear(func() {
-		window.SetText("")
+		window.Clear()
 	})
 	window.OnExit(func() {
 		_ = window.Close()

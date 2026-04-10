@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"live-translator-go/internal/ui"
+
 	"github.com/lxn/walk"
 )
 
@@ -25,6 +27,7 @@ const (
 type previewLine struct {
 	Text      string
 	Alternate bool
+	Partial   bool
 }
 
 type previewSurface struct {
@@ -248,7 +251,7 @@ func (p *previewSurface) paint(canvas *walk.Canvas, updateBounds walk.Rectangle)
 			if err := canvas.DrawTextPixels(layout.Text, font, walk.RGB(8, 10, 15), shadowBounds, walk.TextCenter|walk.TextWordbreak|walk.TextNoPrefix); err != nil {
 				return err
 			}
-			if err := canvas.DrawTextPixels(layout.Text, font, previewLineColor(textColor, alternateTextColor, layout.Alternate, alternateLineColors), lineBounds, walk.TextCenter|walk.TextWordbreak|walk.TextNoPrefix); err != nil {
+			if err := canvas.DrawTextPixels(layout.Text, font, previewLineColor(textColor, alternateTextColor, layout.Alternate, alternateLineColors, layout.Partial), lineBounds, walk.TextCenter|walk.TextWordbreak|walk.TextNoPrefix); err != nil {
 				return err
 			}
 		}
@@ -300,6 +303,7 @@ type previewLineLayout struct {
 	Text      string
 	Height    int
 	Alternate bool
+	Partial   bool
 }
 
 func measurePreviewLayouts(canvas *walk.Canvas, font *walk.Font, lines []previewLine, width int) ([]previewLineLayout, int, error) {
@@ -331,7 +335,7 @@ func measurePreviewLayouts(canvas *walk.Canvas, font *walk.Font, lines []preview
 			totalHeight += previewLineGap
 		}
 		totalHeight += lineHeight
-		layouts = append(layouts, previewLineLayout{Text: text, Height: lineHeight, Alternate: line.Alternate})
+		layouts = append(layouts, previewLineLayout{Text: text, Height: lineHeight, Alternate: line.Alternate, Partial: line.Partial})
 	}
 
 	return layouts, totalHeight, nil
@@ -382,7 +386,11 @@ func (p *previewSurface) clearScrollAnimationLocked() {
 	p.scrollAnimating = false
 }
 
-func previewLineColor(primary walk.Color, alternate walk.Color, useAlternate bool, alternateEnabled bool) walk.Color {
+func previewLineColor(primary walk.Color, alternate walk.Color, useAlternate bool, alternateEnabled bool, isPartial bool) walk.Color {
+	if isPartial {
+		return ui.TextMuted
+	}
+
 	if !alternateEnabled || !useAlternate {
 		return primary
 	}
@@ -406,6 +414,7 @@ func compactPreviewLines(lines []previewLine) []previewLine {
 		current.Text = text
 		if len(compacted) > 0 && shouldReplaceCaption(compacted[len(compacted)-1].Text, current.Text) {
 			current.Alternate = compacted[len(compacted)-1].Alternate
+			// Keep the partial status of the incoming line, which can upgrade an existing partial to final
 			compacted[len(compacted)-1] = current
 			continue
 		}

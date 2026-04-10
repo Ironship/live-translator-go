@@ -16,7 +16,7 @@ type Translator interface {
 }
 
 type Output interface {
-	PushCaption(value string)
+	PushCaption(finalChunks []string, partialChunk string)
 }
 
 type Config struct {
@@ -224,7 +224,8 @@ func (p *Processor) finishSnapshot(source string, value string, canceled bool, f
 	p.mu.Unlock()
 
 	if shouldOutput {
-		p.output.PushCaption(value)
+		chunks, remainder := consumeSentenceChunks(value)
+		p.output.PushCaption(chunks, remainder)
 	}
 
 	if retrySource != "" {

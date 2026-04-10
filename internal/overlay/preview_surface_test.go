@@ -42,7 +42,7 @@ func TestPreviewLineColorUsesPrimaryWhenAlternatingDisabled(t *testing.T) {
 	primary := walk.RGB(10, 20, 30)
 	alternate := walk.RGB(200, 210, 220)
 
-	if color := previewLineColor(primary, alternate, true, false); color != primary {
+	if color := previewLineColor(primary, alternate, true, false, false); color != primary {
 		t.Fatalf("expected primary color when alternating is disabled, got %#x", uint32(color))
 	}
 }
@@ -51,10 +51,10 @@ func TestPreviewLineColorUsesAssignedAlternateColor(t *testing.T) {
 	primary := walk.RGB(10, 20, 30)
 	alternate := walk.RGB(200, 210, 220)
 
-	if color := previewLineColor(primary, alternate, false, true); color != primary {
+	if color := previewLineColor(primary, alternate, false, true, false); color != primary {
 		t.Fatalf("expected primary color for non-alternate line, got %#x", uint32(color))
 	}
-	if color := previewLineColor(primary, alternate, true, true); color != alternate {
+	if color := previewLineColor(primary, alternate, true, true, false); color != alternate {
 		t.Fatalf("expected assigned alternate color, got %#x", uint32(color))
 	}
 }

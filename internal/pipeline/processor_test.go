@@ -21,7 +21,21 @@ func newRecordingOutput() *recordingOutput {
 	return &recordingOutput{ch: make(chan string, 8)}
 }
 
-func (r *recordingOutput) PushCaption(value string) {
+func (r *recordingOutput) PushCaption(finalChunks []string, partialChunk string) {
+	var combined []string
+	combined = append(combined, finalChunks...)
+	if partialChunk != "" {
+		combined = append(combined, partialChunk)
+	}
+
+	value := ""
+	for i, c := range combined {
+		if i > 0 {
+			value += " "
+		}
+		value += c
+	}
+
 	r.mu.Lock()
 	r.values = append(r.values, value)
 	r.mu.Unlock()

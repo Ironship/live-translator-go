@@ -868,9 +868,22 @@ func (w *Window) SetText(value string) {
 	})
 }
 
-func (w *Window) PushCaption(value string) {
-	text := strings.TrimSpace(value)
-	if text == "" || w.mainWindow.IsDisposed() {
+func (w *Window) Clear() {
+	if w.mainWindow.IsDisposed() {
+		return
+	}
+	w.mainWindow.Synchronize(func() {
+		if w.mainWindow.IsDisposed() {
+			return
+		}
+		w.captionHistory = nil
+		w.lastCaptionSnapshot = nil
+		w.applyPreviewLines(nil, false)
+	})
+}
+
+func (w *Window) PushCaption(finalChunks []string, partialChunk string) {
+	if w.mainWindow.IsDisposed() {
 		return
 	}
 
@@ -879,7 +892,7 @@ func (w *Window) PushCaption(value string) {
 			return
 		}
 
-		w.pushCaptionLines(splitCaptionLines(text))
+		w.pushCaptionChunks(finalChunks, partialChunk)
 		w.applyPreviewLines(w.captionHistory, true)
 	})
 }
@@ -1140,8 +1153,14 @@ func (w *Window) applyPreviewLines(lines []previewLine, animate bool) {
 	w.lastText = signature
 }
 
-func (w *Window) pushCaptionLines(lines []string) {
-	incoming := compactCaptionLines(lines)
+func (w *Window) pushCaptionChunks(finalChunks []string, partialChunk string) {
+	var combined []string
+	combined = append(combined, finalChunks...)
+	if partialChunk != "" {
+		combined = append(combined, partialChunk)
+	}
+
+	incoming := compactCaptionLines(combined)
 	if len(incoming) == 0 {
 		return
 	}
@@ -1154,6 +1173,11 @@ func (w *Window) pushCaptionLines(lines []string) {
 		w.captionHistory = replaceLastPreviewCaption(w.captionHistory, replacement)
 	}
 
+	// Before appending, remove any existing history entries that are
+	// superseded by the incoming lines (e.g. a partial chunk "w jego"
+	// that is now part of a full sentence "w jego To jest trudna rzecz").
+	w.captionHistory = removeSupersededCaptions(w.captionHistory, incoming)
+
 	appended := appendedCaptionLines(w.lastCaptionSnapshot, incoming)
 	if len(appended) > 0 {
 		w.captionHistory = appendPreviewTextsWithPersistentColors(w.captionHistory, appended...)
@@ -1161,6 +1185,13 @@ func (w *Window) pushCaptionLines(lines []string) {
 
 	w.captionHistory = trimPreviewHistory(w.captionHistory, w.previewHistoryLimit())
 	w.lastCaptionSnapshot = append([]string(nil), incoming...)
+
+	for i := range w.captionHistory {
+		w.captionHistory[i].Partial = false
+	}
+	if partialChunk != "" && len(w.captionHistory) > 0 {
+		w.captionHistory[len(w.captionHistory)-1].Partial = true
+	}
 }
 
 func appendedCaptionLines(previous []string, incoming []string) []string {
@@ -1229,6 +1260,39 @@ func replaceLastPreviewCaption(lines []previewLine, value string) []previewLine 
 	updated := append([]previewLine(nil), lines...)
 	updated[len(updated)-1].Text = strings.TrimSpace(value)
 	return compactPreviewLines(updated)
+}
+
+// removeSupersededCaptions removes any history entries whose key is a strict
+// prefix of an incoming line's key. This handles partial chunks appearing
+// before the full sentence arrives (e.g. "w jego" → "w jego To jest trudna rzecz").
+// Only strict prefix matching is used — fuzzy matching is too aggressive and
+// causes false positive removal of unrelated sentences.
+func removeSupersededCaptions(history []previewLine, incoming []string) []previewLine {
+	if len(history) == 0 || len(incoming) == 0 {
+		return history
+	}
+
+	kept := make([]previewLine, 0, len(history))
+	for _, line := range history {
+		lineKey := captionComparisonKey(line.Text)
+		superseded := false
+		for _, inc := range incoming {
+			incKey := captionComparisonKey(inc)
+			if lineKey == "" || incKey == "" || lineKey == incKey {
+				continue
+			}
+			// Only remove if this history entry is a strict prefix of an incoming line.
+			if strings.HasPrefix(incKey, lineKey) {
+				superseded = true
+				break
+			}
+		}
+		if !superseded {
+			kept = append(kept, line)
+		}
+	}
+
+	return kept
 }
 
 func (w *Window) previewHistoryLimit() int {
