@@ -55,6 +55,7 @@ type Window struct {
 	speechPanel         *walk.PushButton
 	settings            *walk.PushButton
 	alwaysOnTop         *walk.PushButton
+	clearButton         *walk.PushButton
 	focus               *walk.PushButton
 	exit                *walk.PushButton
 	settingsCard        *walk.Composite
@@ -343,6 +344,16 @@ func New(config Config) (*Window, error) {
 		return nil, err
 	}
 
+	clearButton, err := walk.NewPushButton(buttonRow)
+	if err != nil {
+		return nil, err
+	}
+	clearButton.SetFont(buttonFont)
+	_ = clearButton.SetText("Clear")
+	if err := clearButton.SetMinMaxSize(walk.Size{68, 34}, walk.Size{16777215, 34}); err != nil {
+		return nil, err
+	}
+
 	focusButton, err := walk.NewPushButton(buttonRow)
 	if err != nil {
 		return nil, err
@@ -367,6 +378,7 @@ func New(config Config) (*Window, error) {
 		speechPanelButton,
 		settingsButton,
 		alwaysOnTopButton,
+		clearButton,
 		focusButton,
 		exitButton,
 	)
@@ -571,6 +583,7 @@ func New(config Config) (*Window, error) {
 		speechPanel:     speechPanelButton,
 		settings:        settingsButton,
 		alwaysOnTop:     alwaysOnTopButton,
+		clearButton:     clearButton,
 		focus:           focusButton,
 		exit:            exitButton,
 		settingsCard:    settingsCard,
@@ -698,6 +711,10 @@ func (w *Window) OnDecreaseFontSize(handler func()) {
 
 func (w *Window) OnToggleFocusMode(handler func()) {
 	w.focus.Clicked().Attach(handler)
+}
+
+func (w *Window) OnClear(handler func()) {
+	w.clearButton.Clicked().Attach(handler)
 }
 
 func (w *Window) OnExit(handler func()) {

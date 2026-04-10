@@ -153,6 +153,12 @@ func (c *ChatCompletionsClient) systemPrompt() string {
 		)
 	}
 
+	translationContext = strings.ReplaceAll(translationContext, "{source_language}", sourceLanguage)
+	translationContext = strings.ReplaceAll(translationContext, "{target_language}", targetLanguage)
+	translationContext = strings.ReplaceAll(translationContext, "{context}", "")
+	translationContext = strings.ReplaceAll(translationContext, "{target_line}", "")
+	translationContext = strings.TrimSpace(translationContext)
+
 	return fmt.Sprintf(
 		"You translate live captions from %s to %s. Return only the translated text. Preserve sentence order and intent. Do not add commentary or quotation marks. Use this additional context to resolve ambiguity: %s",
 		sourceLanguage,

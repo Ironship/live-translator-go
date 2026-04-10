@@ -44,6 +44,7 @@ type Processor struct {
 	retryPending  bool
 	retryCount    int
 	debounceTimer *time.Timer
+	firstQueued   time.Time
 }
 
 func NewProcessor(config Config, translator Translator, output Output) *Processor {
@@ -84,12 +85,21 @@ func (p *Processor) Submit(parent context.Context, input string) {
 	p.lastInput = normalized
 	p.retryCount = 0
 	p.retryPending = false
+
+	wasEmpty := p.queued == ""
 	p.queued = normalized
 
 	// If a translation is already in progress, just queue the text.
 	// When it finishes, startNextLocked() will pick up the latest.
 	if p.translating {
+		if wasEmpty {
+			p.firstQueued = time.Now()
+		}
 		return
+	}
+
+	if wasEmpty {
+		p.firstQueued = time.Now()
 	}
 
 	// Debounce: wait for text to stabilize before translating.
@@ -121,6 +131,12 @@ func (p *Processor) Close() {
 // Must be called with p.mu held.
 func (p *Processor) resetDebounceLocked() {
 	if p.debounceTimer != nil {
+		// Prevent infinite starvation if captions are updated continuously.
+		// If we've been queued for more than 2.5x the flush delay without translating, let the existing timer run.
+		maxWait := p.config.IdleFlushDelay*2 + (p.config.IdleFlushDelay / 2)
+		if time.Since(p.firstQueued) >= maxWait {
+			return
+		}
 		p.debounceTimer.Stop()
 	}
 	p.debounceTimer = time.AfterFunc(p.config.IdleFlushDelay, func() {
@@ -222,6 +238,7 @@ func (p *Processor) finishSnapshot(source string, value string, canceled bool, f
 			}
 
 			p.queued = retrySource
+			p.firstQueued = time.Now()
 			p.startNextLocked()
 		})
 	}

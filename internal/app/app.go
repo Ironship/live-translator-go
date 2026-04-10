@@ -59,6 +59,9 @@ func Run() error {
 	window.OnToggleFocusMode(func() {
 		controller.ToggleFocusMode()
 	})
+	window.OnClear(func() {
+		window.SetText("")
+	})
 	window.OnExit(func() {
 		_ = window.Close()
 	})
