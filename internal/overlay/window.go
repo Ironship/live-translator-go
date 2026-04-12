@@ -1233,8 +1233,11 @@ func (w *Window) OnBoundsChanged(handler func(collapsed, expanded, focus walk.Re
 	w.onBoundsChanged = handler
 }
 
-// isBoundsOnScreen returns true when at least a portion of bounds falls within
+// isBoundsOnScreen returns true when the bounds have meaningful overlap with
 // the virtual screen (the bounding rectangle of all connected monitors).
+// It checks that at least 50 px of the window's horizontal extent intersects
+// the virtual screen and that the title bar (Y coordinate) is within the
+// virtual screen's vertical range.
 func isBoundsOnScreen(bounds walk.Rectangle) bool {
 	vx := int(win.GetSystemMetrics(win.SM_XVIRTUALSCREEN))
 	vy := int(win.GetSystemMetrics(win.SM_YVIRTUALSCREEN))
@@ -1244,9 +1247,13 @@ func isBoundsOnScreen(bounds walk.Rectangle) bool {
 		return false
 	}
 
-	// Consider the bounds visible when its top-left corner (plus a small margin)
-	// lands inside the virtual screen.
 	const margin = 50
+	// Horizontal: the window's right edge (minus margin) must reach into the
+	// screen from the left, and the window's left edge (plus margin) must not
+	// exceed the screen's right edge.  This guarantees at least 'margin' px
+	// of horizontal overlap with the virtual screen.
+	// Vertical: the title-bar row (bounds.Y + margin) must sit inside the
+	// virtual screen's vertical extent.
 	return bounds.X+bounds.Width-margin >= vx &&
 		bounds.X+margin <= vx+vw &&
 		bounds.Y+margin >= vy &&

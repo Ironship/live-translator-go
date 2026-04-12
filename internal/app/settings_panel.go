@@ -1033,7 +1033,7 @@ func collectPanelSettings(
 
 	normalizedBackgroundColor := settings.NormalizeHexColor(backgroundColor, "")
 	if normalizedBackgroundColor == "" {
-		return base, "Background color musi miec format #RRGGBB."
+		return base, "Background color must have format #RRGGBB."
 	}
 	updated.BackgroundColor = normalizedBackgroundColor
 
