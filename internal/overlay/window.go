@@ -69,14 +69,11 @@ type Window struct {
 	exit                *walk.PushButton
 	settingsCard        *walk.Composite
 	settingsHost        *walk.Composite
+	settingsEyebrow     *walk.Label
+	settingsIntro       *walk.Label
 	shellBrush          *walk.SolidColorBrush
 	headerBrush         *walk.SolidColorBrush
 	settingsBrush       *walk.SolidColorBrush
-	previewBrush        *walk.SolidColorBrush
-	previewStageB       *walk.SolidColorBrush
-	focusShellBrush     *walk.SolidColorBrush
-	focusPreviewB       *walk.SolidColorBrush
-	focusStageB         *walk.SolidColorBrush
 	lastText            string
 	captionHistory      []previewLine
 	lastCaptionSnapshot []string
@@ -187,24 +184,6 @@ func New(config Config) (*Window, error) {
 		return nil, err
 	}
 	mainWindow.AddDisposable(settingsBrush)
-
-	focusShellBrush, err := walk.NewSolidColorBrush(initialTheme.AppBackground)
-	if err != nil {
-		return nil, err
-	}
-	mainWindow.AddDisposable(focusShellBrush)
-
-	focusPreviewBrush, err := walk.NewSolidColorBrush(initialTheme.PreviewBackground)
-	if err != nil {
-		return nil, err
-	}
-	mainWindow.AddDisposable(focusPreviewBrush)
-
-	focusStageBrush, err := walk.NewSolidColorBrush(initialTheme.PreviewStageBackground)
-	if err != nil {
-		return nil, err
-	}
-	mainWindow.AddDisposable(focusStageBrush)
 
 	eyebrowFont, err := walk.NewFont("Bahnschrift SemiCondensed", 10, walk.FontBold)
 	if err != nil {
@@ -437,17 +416,6 @@ func New(config Config) (*Window, error) {
 	if err := setGradientCompositeColor(previewPanel, initialTheme.PreviewBackground); err != nil {
 		return nil, err
 	}
-	previewBrush, err := walk.NewSolidColorBrush(initialTheme.PreviewBackground)
-	if err != nil {
-		return nil, err
-	}
-	mainWindow.AddDisposable(previewBrush)
-
-	previewStageBrush, err := walk.NewSolidColorBrush(initialTheme.PreviewStageBackground)
-	if err != nil {
-		return nil, err
-	}
-	mainWindow.AddDisposable(previewStageBrush)
 
 	previewHeader, err := walk.NewGradientComposite(previewPanel)
 	if err != nil {
@@ -606,14 +574,11 @@ func New(config Config) (*Window, error) {
 		exit:            exitButton,
 		settingsCard:    settingsCard,
 		settingsHost:    settingsHost,
+		settingsEyebrow: settingsEyebrow,
+		settingsIntro:   settingsIntro,
 		shellBrush:      shellBrush,
 		headerBrush:     headerBrush,
 		settingsBrush:   settingsBrush,
-		previewBrush:    previewBrush,
-		previewStageB:   previewStageBrush,
-		focusShellBrush: focusShellBrush,
-		focusPreviewB:   focusPreviewBrush,
-		focusStageB:     focusStageBrush,
 		lastText:        previewLineSignature(initialPreviewLines),
 		captionHistory:  append([]previewLine(nil), initialPreviewLines...),
 		currentConfig:   config,
@@ -1028,6 +993,8 @@ func (w *Window) applyThemeBrushes(theme ui.ThemeColors) error {
 	w.statusLabel.SetTextColor(theme.TextSecondary)
 	w.previewTitle.SetTextColor(theme.Accent)
 	w.focusHint.SetTextColor(theme.TextMuted)
+	w.settingsEyebrow.SetTextColor(theme.AccentSoft)
+	w.settingsIntro.SetTextColor(theme.TextSecondary)
 
 	return nil
 }
