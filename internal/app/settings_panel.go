@@ -39,9 +39,12 @@ type settingsPanel struct {
 	processRow        *settingsFieldRow
 	windowClassRow    *settingsFieldRow
 	automationIDRow   *settingsFieldRow
+	fontFamilyRow     *settingsFieldRow
 	fontSizeRow       *settingsFieldRow
 	textColorRow      *settingsFieldRow
 	alternateColorRow *settingsFieldRow
+	themeBox          *walk.ComboBox
+	backgroundColorRow *settingsFieldRow
 	alternateLinesBox *walk.CheckBox
 	alwaysOnTopBox    *walk.CheckBox
 	clickThroughBox   *walk.CheckBox
@@ -300,7 +303,11 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	if err != nil {
 		return nil, err
 	}
-	if _, err := addSettingsGroupNote(previewGroup, "Font size updates immediately. Use #RRGGBB for line colors, then enable alternating colors if adjacent lines should swap colors."); err != nil {
+	if _, err := addSettingsGroupNote(previewGroup, "Font size and family update immediately. Use #RRGGBB for line colors, then enable alternating colors if adjacent lines should swap colors. Valid font size range: 12–64."); err != nil {
+		return nil, err
+	}
+	panel.fontFamilyRow, err = addSettingsLineEditRow(previewGroup, "Font family", current.FontFamily, inputBrush, sectionBrush)
+	if err != nil {
 		return nil, err
 	}
 	panel.fontSizeRow, err = addSettingsLineEditRow(previewGroup, "Font size", strconv.Itoa(current.FontSize), inputBrush, sectionBrush)
@@ -323,7 +330,29 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	if err != nil {
 		return nil, err
 	}
-	panel.alwaysOnTopBox, err = walk.NewCheckBox(previewGroup)
+
+	themeGroup, err := newSettingsSection(appearancePage, "Theme and background", sectionBrush)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := addSettingsGroupNote(themeGroup, "Choose a color theme for the window chrome. Background color (#RRGGBB) controls the preview stage gradient."); err != nil {
+		return nil, err
+	}
+	panel.themeBox, err = addSettingsComboBoxRow(themeGroup, "Theme", ui.ThemeNames, current.Theme, inputBrush, sectionBrush)
+	if err != nil {
+		return nil, err
+	}
+	panel.backgroundColorRow, err = addSettingsLineEditRow(themeGroup, "Background color", current.BackgroundColor, inputBrush, sectionBrush)
+	if err != nil {
+		return nil, err
+	}
+
+	var windowBehaviorGroup *walk.Composite
+	windowBehaviorGroup, err = newSettingsSection(appearancePage, "Window behavior", sectionBrush)
+	if err != nil {
+		return nil, err
+	}
+	panel.alwaysOnTopBox, err = walk.NewCheckBox(windowBehaviorGroup)
 	if err != nil {
 		return nil, err
 	}
@@ -331,7 +360,7 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 		panel.alwaysOnTopBox.SetBackground(sectionBrush)
 	}
 	_ = panel.alwaysOnTopBox.SetText("Keep window always on top")
-	panel.clickThroughBox, err = walk.NewCheckBox(previewGroup)
+	panel.clickThroughBox, err = walk.NewCheckBox(windowBehaviorGroup)
 	if err != nil {
 		return nil, err
 	}
@@ -457,12 +486,15 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 			panel.processRow.edit.Text(),
 			panel.windowClassRow.edit.Text(),
 			panel.automationIDRow.edit.Text(),
+			panel.fontFamilyRow.edit.Text(),
 			panel.fontSizeRow.edit.Text(),
 			panel.textColorRow.edit.Text(),
 			panel.alternateColorRow.edit.Text(),
 			panel.alternateLinesBox.Checked(),
 			panel.alwaysOnTopBox.Checked(),
 			panel.clickThroughBox.Checked(),
+			panel.selectedTheme(),
+			panel.backgroundColorRow.edit.Text(),
 		)
 		if validationMessage != "" {
 			panel.showError(validationMessage)
@@ -561,9 +593,12 @@ func (p *settingsPanel) Load(values settings.Values) {
 	_ = p.processRow.edit.SetText(values.CaptionProcessName)
 	_ = p.windowClassRow.edit.SetText(values.CaptionWindowClass)
 	_ = p.automationIDRow.edit.SetText(values.CaptionAutomationID)
+	_ = p.fontFamilyRow.edit.SetText(values.FontFamily)
 	_ = p.fontSizeRow.edit.SetText(strconv.Itoa(values.FontSize))
 	_ = p.textColorRow.edit.SetText(values.TextColor)
 	_ = p.alternateColorRow.edit.SetText(values.AlternateTextColor)
+	_ = p.themeBox.SetCurrentIndex(indexOfString(ui.ThemeNames, values.Theme))
+	_ = p.backgroundColorRow.edit.SetText(values.BackgroundColor)
 	p.alternateLinesBox.SetChecked(values.AlternateLineColors)
 	p.alwaysOnTopBox.SetChecked(values.AlwaysOnTop)
 	p.clickThroughBox.SetChecked(values.ClickThrough)
@@ -589,6 +624,17 @@ func (p *settingsPanel) selectedTargetLanguage() string {
 	}
 
 	return translator.CanonicalTargetLanguage(p.targetLangBox.Text())
+}
+
+func (p *settingsPanel) selectedTheme() string {
+	if p.themeBox == nil {
+		return "Dark"
+	}
+	text := strings.TrimSpace(p.themeBox.Text())
+	if text == "" {
+		return "Dark"
+	}
+	return text
 }
 
 func (p *settingsPanel) updateProviderButtons(provider string) {
@@ -922,12 +968,15 @@ func collectPanelSettings(
 	processName string,
 	windowClass string,
 	automationID string,
+	fontFamily string,
 	fontSize string,
 	textColor string,
 	alternateTextColor string,
 	alternateLineColors bool,
 	alwaysOnTop bool,
 	clickThrough bool,
+	theme string,
+	backgroundColor string,
 ) (settings.Values, string) {
 	updated := base
 	updated.Provider = translator.NormalizeProvider(provider)
@@ -940,9 +989,11 @@ func collectPanelSettings(
 	updated.CaptionProcessName = strings.TrimSpace(processName)
 	updated.CaptionWindowClass = strings.TrimSpace(windowClass)
 	updated.CaptionAutomationID = strings.TrimSpace(automationID)
+	updated.FontFamily = strings.TrimSpace(fontFamily)
 	updated.AlternateLineColors = alternateLineColors
 	updated.AlwaysOnTop = alwaysOnTop
 	updated.ClickThrough = clickThrough
+	updated.Theme = theme
 
 	parsedPollMs, err := strconv.Atoi(strings.TrimSpace(pollMs))
 	if err != nil || parsedPollMs <= 0 {
@@ -979,6 +1030,12 @@ func collectPanelSettings(
 		return base, "Alternate line color musi miec format #RRGGBB."
 	}
 	updated.AlternateTextColor = normalizedAlternateColor
+
+	normalizedBackgroundColor := settings.NormalizeHexColor(backgroundColor, "")
+	if normalizedBackgroundColor == "" {
+		return base, "Background color musi miec format #RRGGBB."
+	}
+	updated.BackgroundColor = normalizedBackgroundColor
 
 	updated = settings.Sanitize(updated)
 	return updated, ""

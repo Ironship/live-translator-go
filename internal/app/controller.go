@@ -13,6 +13,8 @@ import (
 	"live-translator-go/internal/overlay"
 	"live-translator-go/internal/settings"
 	"live-translator-go/internal/translator"
+
+	"github.com/lxn/walk"
 )
 
 type Controller struct {
@@ -31,11 +33,37 @@ const (
 )
 
 func NewController(rootCtx context.Context, overlayWindow *overlay.Window, values settings.Values) *Controller {
-	return &Controller{
+	c := &Controller{
 		rootCtx: rootCtx,
 		overlay: overlayWindow,
 		values:  settings.Sanitize(values),
 	}
+
+	overlayWindow.OnBoundsChanged(func(collapsed, expanded, focus walk.Rectangle) {
+		c.mu.Lock()
+		current := c.values
+		c.mu.Unlock()
+
+		next := current
+		next.WindowX = collapsed.X
+		next.WindowY = collapsed.Y
+		next.WindowWidth = collapsed.Width
+		next.WindowHeight = collapsed.Height
+		next.FocusWindowX = focus.X
+		next.FocusWindowY = focus.Y
+		next.FocusWindowWidth = focus.Width
+		next.FocusWindowHeight = focus.Height
+
+		if err := settings.Save(next); err != nil {
+			return
+		}
+
+		c.mu.Lock()
+		c.values = settings.Sanitize(next)
+		c.mu.Unlock()
+	})
+
+	return c
 }
 
 func (c *Controller) AttachSettingsPanel(panel *settingsPanel) {

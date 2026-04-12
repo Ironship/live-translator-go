@@ -33,6 +33,12 @@ type Config struct {
 	AlternateLineColors bool
 	AlwaysOnTop         bool
 	ClickThrough        bool
+	Theme               ui.ThemeColors
+
+	// SavedBounds and SavedFocusBounds are restored window positions.
+	// Zero-value Width/Height means "use computed default".
+	SavedBounds      walk.Rectangle
+	SavedFocusBounds walk.Rectangle
 }
 
 type Window struct {
@@ -40,6 +46,9 @@ type Window struct {
 	shell               *walk.Composite
 	rootLayout          *walk.BoxLayout
 	headerCard          *walk.Composite
+	headerRow           *walk.Composite
+	brandColumn         *walk.Composite
+	buttonRow           *walk.Composite
 	previewCard         *walk.Composite
 	previewPanel        *walk.GradientComposite
 	previewHeader       *walk.GradientComposite
@@ -61,6 +70,8 @@ type Window struct {
 	settingsCard        *walk.Composite
 	settingsHost        *walk.Composite
 	shellBrush          *walk.SolidColorBrush
+	headerBrush         *walk.SolidColorBrush
+	settingsBrush       *walk.SolidColorBrush
 	previewBrush        *walk.SolidColorBrush
 	previewStageB       *walk.SolidColorBrush
 	focusShellBrush     *walk.SolidColorBrush
@@ -70,6 +81,7 @@ type Window struct {
 	captionHistory      []previewLine
 	lastCaptionSnapshot []string
 	currentConfig       Config
+	currentTheme        ui.ThemeColors
 	collapsedBounds     walk.Rectangle
 	expandedBounds      walk.Rectangle
 	focusBounds         walk.Rectangle
@@ -79,6 +91,7 @@ type Window struct {
 	alwaysOnTopEnabled  bool
 	increaseFontSize    func()
 	decreaseFontSize    func()
+	onBoundsChanged     func(collapsed, expanded, focus walk.Rectangle)
 }
 
 const (
@@ -134,7 +147,9 @@ func New(config Config) (*Window, error) {
 	}
 	applyDarkTitleBar(mainWindow.Handle())
 
-	shellBrush, err := walk.NewSolidColorBrush(ui.AppBackground)
+	initialTheme := config.Theme
+
+	shellBrush, err := walk.NewSolidColorBrush(initialTheme.AppBackground)
 	if err != nil {
 		return nil, err
 	}
@@ -161,31 +176,31 @@ func New(config Config) (*Window, error) {
 		return nil, err
 	}
 
-	headerBrush, err := walk.NewSolidColorBrush(ui.CardBackground)
+	headerBrush, err := walk.NewSolidColorBrush(initialTheme.CardBackground)
 	if err != nil {
 		return nil, err
 	}
 	mainWindow.AddDisposable(headerBrush)
 
-	settingsBrush, err := walk.NewSolidColorBrush(ui.PanelBackground)
+	settingsBrush, err := walk.NewSolidColorBrush(initialTheme.PanelBackground)
 	if err != nil {
 		return nil, err
 	}
 	mainWindow.AddDisposable(settingsBrush)
 
-	focusShellBrush, err := walk.NewSolidColorBrush(ui.FocusBackground)
+	focusShellBrush, err := walk.NewSolidColorBrush(initialTheme.AppBackground)
 	if err != nil {
 		return nil, err
 	}
 	mainWindow.AddDisposable(focusShellBrush)
 
-	focusPreviewBrush, err := walk.NewSolidColorBrush(ui.FocusPanelBackground)
+	focusPreviewBrush, err := walk.NewSolidColorBrush(initialTheme.PreviewBackground)
 	if err != nil {
 		return nil, err
 	}
 	mainWindow.AddDisposable(focusPreviewBrush)
 
-	focusStageBrush, err := walk.NewSolidColorBrush(ui.FocusStageBackground)
+	focusStageBrush, err := walk.NewSolidColorBrush(initialTheme.PreviewStageBackground)
 	if err != nil {
 		return nil, err
 	}
@@ -277,7 +292,7 @@ func New(config Config) (*Window, error) {
 		return nil, err
 	}
 	titleLabel.SetFont(titleFont)
-	titleLabel.SetTextColor(ui.TextPrimary)
+	titleLabel.SetTextColor(initialTheme.TextPrimary)
 	_ = titleLabel.SetText("Live Translator")
 
 	statusLabel, err := walk.NewLabel(brandColumn)
@@ -285,7 +300,7 @@ func New(config Config) (*Window, error) {
 		return nil, err
 	}
 	statusLabel.SetFont(statusFont)
-	statusLabel.SetTextColor(ui.TextSecondary)
+	statusLabel.SetTextColor(initialTheme.TextSecondary)
 	_ = statusLabel.SetText("Status: waiting for Live Captions")
 
 	buttonRow, err := walk.NewComposite(headerRow)
@@ -419,16 +434,16 @@ func New(config Config) (*Window, error) {
 	if err := previewPanel.SetLayout(previewLayout); err != nil {
 		return nil, err
 	}
-	if err := setGradientCompositeColor(previewPanel, ui.PreviewBackground); err != nil {
+	if err := setGradientCompositeColor(previewPanel, initialTheme.PreviewBackground); err != nil {
 		return nil, err
 	}
-	previewBrush, err := walk.NewSolidColorBrush(ui.PreviewBackground)
+	previewBrush, err := walk.NewSolidColorBrush(initialTheme.PreviewBackground)
 	if err != nil {
 		return nil, err
 	}
 	mainWindow.AddDisposable(previewBrush)
 
-	previewStageBrush, err := walk.NewSolidColorBrush(ui.PreviewStageBackground)
+	previewStageBrush, err := walk.NewSolidColorBrush(initialTheme.PreviewStageBackground)
 	if err != nil {
 		return nil, err
 	}
@@ -448,7 +463,7 @@ func New(config Config) (*Window, error) {
 	if err := previewHeader.SetLayout(previewHeaderLayout); err != nil {
 		return nil, err
 	}
-	if err := setGradientCompositeColor(previewHeader, ui.PreviewBackground); err != nil {
+	if err := setGradientCompositeColor(previewHeader, initialTheme.PreviewBackground); err != nil {
 		return nil, err
 	}
 
@@ -457,7 +472,7 @@ func New(config Config) (*Window, error) {
 		return nil, err
 	}
 	previewTitle.SetFont(eyebrowFont)
-	previewTitle.SetTextColor(ui.Accent)
+	previewTitle.SetTextColor(initialTheme.Accent)
 	_ = previewTitle.SetText("LIVE CAPTIONS")
 
 	if _, err := walk.NewHSpacer(previewHeader); err != nil {
@@ -469,7 +484,7 @@ func New(config Config) (*Window, error) {
 		return nil, err
 	}
 	focusHintLabel.SetFont(statusFont)
-	focusHintLabel.SetTextColor(ui.TextMuted)
+	focusHintLabel.SetTextColor(initialTheme.TextMuted)
 	_ = focusHintLabel.SetText("[Esc to leave focus mode]")
 	focusHintLabel.SetVisible(false)
 
@@ -477,7 +492,7 @@ func New(config Config) (*Window, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := setGradientCompositeColor(previewStage, ui.PreviewStageBackground); err != nil {
+	if err := setGradientCompositeColor(previewStage, initialTheme.PreviewStageBackground); err != nil {
 		return nil, err
 	}
 	if err := previewStage.SetMinMaxSize(walk.Size{0, 140}, walk.Size{16777215, 16777215}); err != nil {
@@ -543,7 +558,7 @@ func New(config Config) (*Window, error) {
 		return nil, err
 	}
 	settingsEyebrow.SetFont(eyebrowFont)
-	settingsEyebrow.SetTextColor(ui.AccentSoft)
+	settingsEyebrow.SetTextColor(initialTheme.AccentSoft)
 	_ = settingsEyebrow.SetText("SETTINGS")
 
 	settingsIntro, err := walk.NewLabel(settingsCard)
@@ -551,7 +566,7 @@ func New(config Config) (*Window, error) {
 		return nil, err
 	}
 	settingsIntro.SetFont(bodyFont)
-	settingsIntro.SetTextColor(ui.TextSecondary)
+	settingsIntro.SetTextColor(initialTheme.TextSecondary)
 	_ = settingsIntro.SetText("Provider, caption source, and appearance changes apply after Save.")
 
 	settingsHost, err := walk.NewComposite(settingsCard)
@@ -568,6 +583,9 @@ func New(config Config) (*Window, error) {
 		shell:           shell,
 		rootLayout:      rootLayout,
 		headerCard:      headerCard,
+		headerRow:       headerRow,
+		brandColumn:     brandColumn,
+		buttonRow:       buttonRow,
 		previewCard:     previewCard,
 		previewPanel:    previewPanel,
 		previewHeader:   previewHeader,
@@ -589,6 +607,8 @@ func New(config Config) (*Window, error) {
 		settingsCard:    settingsCard,
 		settingsHost:    settingsHost,
 		shellBrush:      shellBrush,
+		headerBrush:     headerBrush,
+		settingsBrush:   settingsBrush,
 		previewBrush:    previewBrush,
 		previewStageB:   previewStageBrush,
 		focusShellBrush: focusShellBrush,
@@ -597,7 +617,16 @@ func New(config Config) (*Window, error) {
 		lastText:        previewLineSignature(initialPreviewLines),
 		captionHistory:  append([]previewLine(nil), initialPreviewLines...),
 		currentConfig:   config,
+		currentTheme:    initialTheme,
 		settingsVisible: false,
+	}
+
+	// Restore persisted window positions if they are valid for the current screen setup.
+	if isStoredBounds(config.SavedBounds) && isBoundsOnScreen(config.SavedBounds) {
+		window.collapsedBounds = config.SavedBounds
+	}
+	if isStoredBounds(config.SavedFocusBounds) && isBoundsOnScreen(config.SavedFocusBounds) {
+		window.focusBounds = config.SavedFocusBounds
 	}
 	window.mainWindow.Disposing().Attach(func() {
 		previewSurface.Stop()
@@ -915,6 +944,14 @@ func (w *Window) applyConfig(config Config) error {
 	w.currentConfig = config
 	w.alwaysOnTopEnabled = config.AlwaysOnTop
 	w.updateActionButtons()
+
+	// Update theme brushes when the theme changes.
+	if config.Theme != w.currentTheme {
+		if err := w.applyThemeBrushes(config.Theme); err != nil {
+			return err
+		}
+	}
+
 	if err := w.applyPresentation(); err != nil {
 		return err
 	}
@@ -949,18 +986,65 @@ func (w *Window) applyConfig(config Config) error {
 	return nil
 }
 
+// applyThemeBrushes recreates the background brushes for the new theme and
+// reapplies them to all themed composites.  Old brushes remain registered with
+// AddDisposable and will be freed when the window closes.
+func (w *Window) applyThemeBrushes(theme ui.ThemeColors) error {
+	w.currentTheme = theme
+
+	shellBrush, err := walk.NewSolidColorBrush(theme.AppBackground)
+	if err != nil {
+		return err
+	}
+	w.mainWindow.AddDisposable(shellBrush)
+	w.shellBrush = shellBrush
+
+	headerBrush, err := walk.NewSolidColorBrush(theme.CardBackground)
+	if err != nil {
+		return err
+	}
+	w.mainWindow.AddDisposable(headerBrush)
+	w.headerBrush = headerBrush
+
+	settingsBrush, err := walk.NewSolidColorBrush(theme.PanelBackground)
+	if err != nil {
+		return err
+	}
+	w.mainWindow.AddDisposable(settingsBrush)
+	w.settingsBrush = settingsBrush
+
+	// Apply new brushes to all themed composites.
+	w.mainWindow.SetBackground(shellBrush)
+	w.shell.SetBackground(shellBrush)
+	w.previewCard.SetBackground(shellBrush)
+	w.headerCard.SetBackground(headerBrush)
+	w.headerRow.SetBackground(headerBrush)
+	w.brandColumn.SetBackground(headerBrush)
+	w.buttonRow.SetBackground(headerBrush)
+	w.settingsCard.SetBackground(settingsBrush)
+	w.settingsHost.SetBackground(settingsBrush)
+
+	w.titleLabel.SetTextColor(theme.TextPrimary)
+	w.statusLabel.SetTextColor(theme.TextSecondary)
+	w.previewTitle.SetTextColor(theme.Accent)
+	w.focusHint.SetTextColor(theme.TextMuted)
+
+	return nil
+}
+
 func (w *Window) applyPresentation() error {
+	theme := w.currentTheme
 	if w.focusMode {
 		w.mainWindow.SetBackground(w.shellBrush)
 		w.shell.SetBackground(w.shellBrush)
 		w.previewCard.SetBackground(w.shellBrush)
-		if err := setGradientCompositeColor(w.previewPanel, ui.PreviewBackground); err != nil {
+		if err := setGradientCompositeColor(w.previewPanel, theme.PreviewBackground); err != nil {
 			return err
 		}
-		if err := setGradientCompositeColor(w.previewHeader, ui.PreviewBackground); err != nil {
+		if err := setGradientCompositeColor(w.previewHeader, theme.PreviewBackground); err != nil {
 			return err
 		}
-		if err := setGradientCompositeColor(w.previewStage, ui.PreviewStageBackground); err != nil {
+		if err := setGradientCompositeColor(w.previewStage, theme.PreviewStageBackground); err != nil {
 			return err
 		}
 		w.headerCard.SetVisible(false)
@@ -990,13 +1074,13 @@ func (w *Window) applyPresentation() error {
 	w.mainWindow.SetBackground(w.shellBrush)
 	w.shell.SetBackground(w.shellBrush)
 	w.previewCard.SetBackground(w.shellBrush)
-	if err := setGradientCompositeColor(w.previewPanel, ui.PreviewBackground); err != nil {
+	if err := setGradientCompositeColor(w.previewPanel, theme.PreviewBackground); err != nil {
 		return err
 	}
-	if err := setGradientCompositeColor(w.previewHeader, ui.PreviewBackground); err != nil {
+	if err := setGradientCompositeColor(w.previewHeader, theme.PreviewBackground); err != nil {
 		return err
 	}
-	if err := setGradientCompositeColor(w.previewStage, ui.PreviewStageBackground); err != nil {
+	if err := setGradientCompositeColor(w.previewStage, theme.PreviewStageBackground); err != nil {
 		return err
 	}
 	w.headerCard.SetVisible(true)
@@ -1128,19 +1212,45 @@ func (w *Window) storeBounds(bounds walk.Rectangle) {
 
 	if w.focusMode {
 		w.focusBounds = bounds
-		return
-	}
-
-	if w.settingsVisible {
+	} else if w.settingsVisible {
 		w.expandedBounds = bounds
-		return
+	} else {
+		w.collapsedBounds = bounds
 	}
 
-	w.collapsedBounds = bounds
+	if w.onBoundsChanged != nil {
+		w.onBoundsChanged(w.collapsedBounds, w.expandedBounds, w.focusBounds)
+	}
 }
 
 func isStoredBounds(bounds walk.Rectangle) bool {
 	return bounds.Width > 0 && bounds.Height > 0
+}
+
+// OnBoundsChanged registers a callback that is invoked whenever any of the
+// three persisted window positions (collapsed, expanded, focus) changes.
+func (w *Window) OnBoundsChanged(handler func(collapsed, expanded, focus walk.Rectangle)) {
+	w.onBoundsChanged = handler
+}
+
+// isBoundsOnScreen returns true when at least a portion of bounds falls within
+// the virtual screen (the bounding rectangle of all connected monitors).
+func isBoundsOnScreen(bounds walk.Rectangle) bool {
+	vx := int(win.GetSystemMetrics(win.SM_XVIRTUALSCREEN))
+	vy := int(win.GetSystemMetrics(win.SM_YVIRTUALSCREEN))
+	vw := int(win.GetSystemMetrics(win.SM_CXVIRTUALSCREEN))
+	vh := int(win.GetSystemMetrics(win.SM_CYVIRTUALSCREEN))
+	if vw <= 0 || vh <= 0 {
+		return false
+	}
+
+	// Consider the bounds visible when its top-left corner (plus a small margin)
+	// lands inside the virtual screen.
+	const margin = 50
+	return bounds.X+bounds.Width-margin >= vx &&
+		bounds.X+margin <= vx+vw &&
+		bounds.Y+margin >= vy &&
+		bounds.Y+margin <= vy+vh
 }
 
 func (w *Window) applyPreviewLines(lines []previewLine, animate bool) {

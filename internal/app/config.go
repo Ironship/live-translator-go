@@ -11,6 +11,9 @@ import (
 	"live-translator-go/internal/overlay"
 	"live-translator-go/internal/settings"
 	"live-translator-go/internal/translator"
+	"live-translator-go/internal/ui"
+
+	"github.com/lxn/walk"
 )
 
 type Config struct {
@@ -51,12 +54,25 @@ func ConfigFromSettings(values settings.Values) Config {
 			Height:              values.OverlayHeight,
 			HorizontalMargin:    values.OverlayMarginX,
 			BottomOffset:        values.OverlayBottomOffset,
-			BackgroundColor:     overlay.Color{R: 18, G: 18, B: 18},
+			BackgroundColor:     overlayColorFromHex(values.BackgroundColor, overlay.Color{R: 18, G: 18, B: 18}),
 			TextColor:           overlayColorFromHex(values.TextColor, overlay.Color{R: 245, G: 245, B: 245}),
 			AlternateTextColor:  overlayColorFromHex(values.AlternateTextColor, overlay.Color{R: 255, G: 211, B: 106}),
 			AlternateLineColors: values.AlternateLineColors,
 			AlwaysOnTop:         values.AlwaysOnTop,
 			ClickThrough:        values.ClickThrough,
+			Theme:               ui.ThemeForName(values.Theme),
+			SavedBounds: walk.Rectangle{
+				X:      values.WindowX,
+				Y:      values.WindowY,
+				Width:  values.WindowWidth,
+				Height: values.WindowHeight,
+			},
+			SavedFocusBounds: walk.Rectangle{
+				X:      values.FocusWindowX,
+				Y:      values.FocusWindowY,
+				Width:  values.FocusWindowWidth,
+				Height: values.FocusWindowHeight,
+			},
 		},
 		RequestTimeout:   time.Duration(values.RequestTimeoutMs) * time.Millisecond,
 		RequestFrequency: time.Duration(values.RequestFrequencyMs) * time.Millisecond,

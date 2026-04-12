@@ -35,11 +35,24 @@ type Values struct {
 	OverlayHeight       int    `json:"overlayHeight"`
 	OverlayMarginX      int    `json:"overlayMarginX"`
 	OverlayBottomOffset int    `json:"overlayBottomOffset"`
+	Theme               string `json:"theme"`
+	BackgroundColor     string `json:"backgroundColor"`
 	TextColor           string `json:"textColor"`
 	AlternateTextColor  string `json:"alternateTextColor"`
 	AlternateLineColors bool   `json:"alternateLineColors"`
 	AlwaysOnTop         bool   `json:"alwaysOnTop"`
 	ClickThrough        bool   `json:"clickThrough"`
+
+	// Persisted window positions (zero values = use computed defaults).
+	WindowX      int `json:"windowX"`
+	WindowY      int `json:"windowY"`
+	WindowWidth  int `json:"windowWidth"`
+	WindowHeight int `json:"windowHeight"`
+
+	FocusWindowX      int `json:"focusWindowX"`
+	FocusWindowY      int `json:"focusWindowY"`
+	FocusWindowWidth  int `json:"focusWindowWidth"`
+	FocusWindowHeight int `json:"focusWindowHeight"`
 }
 
 func DefaultValues() Values {
@@ -61,6 +74,8 @@ func DefaultValues() Values {
 		OverlayHeight:       88,
 		OverlayMarginX:      120,
 		OverlayBottomOffset: 48,
+		Theme:               "Dark",
+		BackgroundColor:     "#121212",
 		TextColor:           "#F5F5F5",
 		AlternateTextColor:  "#FFD36A",
 		AlternateLineColors: false,
@@ -152,6 +167,7 @@ func Sanitize(values Values) Values {
 	values.CaptionWindowClass = defaultString(values.CaptionWindowClass, defaults.CaptionWindowClass)
 	values.CaptionAutomationID = defaultString(values.CaptionAutomationID, defaults.CaptionAutomationID)
 	values.FontFamily = defaultString(values.FontFamily, defaults.FontFamily)
+	values.Theme = normalizeThemeName(values.Theme)
 
 	values.CaptionPollMs = defaultInt(values.CaptionPollMs, defaults.CaptionPollMs)
 	values.RequestTimeoutMs = defaultInt(values.RequestTimeoutMs, defaults.RequestTimeoutMs)
@@ -159,8 +175,27 @@ func Sanitize(values Values) Values {
 	values.OverlayHeight = defaultInt(values.OverlayHeight, defaults.OverlayHeight)
 	values.OverlayMarginX = defaultNonNegativeInt(values.OverlayMarginX, defaults.OverlayMarginX)
 	values.OverlayBottomOffset = defaultNonNegativeInt(values.OverlayBottomOffset, defaults.OverlayBottomOffset)
+	values.BackgroundColor = NormalizeHexColor(values.BackgroundColor, defaults.BackgroundColor)
 	values.TextColor = NormalizeHexColor(values.TextColor, defaults.TextColor)
 	values.AlternateTextColor = NormalizeHexColor(values.AlternateTextColor, defaults.AlternateTextColor)
+
+	// Window bounds: negative values are cleared to zero (0 means "use computed default").
+	values.WindowX = defaultNonNegativeInt(values.WindowX, 0)
+	values.WindowY = defaultNonNegativeInt(values.WindowY, 0)
+	if values.WindowWidth < 0 {
+		values.WindowWidth = 0
+	}
+	if values.WindowHeight < 0 {
+		values.WindowHeight = 0
+	}
+	values.FocusWindowX = defaultNonNegativeInt(values.FocusWindowX, 0)
+	values.FocusWindowY = defaultNonNegativeInt(values.FocusWindowY, 0)
+	if values.FocusWindowWidth < 0 {
+		values.FocusWindowWidth = 0
+	}
+	if values.FocusWindowHeight < 0 {
+		values.FocusWindowHeight = 0
+	}
 
 	return values
 }
@@ -183,6 +218,8 @@ func applyEnvOverrides(values Values) Values {
 	values.OverlayHeight = envInt("LIVE_TRANSLATOR_OVERLAY_HEIGHT", values.OverlayHeight)
 	values.OverlayMarginX = envInt("LIVE_TRANSLATOR_OVERLAY_MARGIN_X", values.OverlayMarginX)
 	values.OverlayBottomOffset = envInt("LIVE_TRANSLATOR_OVERLAY_BOTTOM_OFFSET", values.OverlayBottomOffset)
+	values.Theme = envString("LIVE_TRANSLATOR_THEME", values.Theme)
+	values.BackgroundColor = envString("LIVE_TRANSLATOR_BACKGROUND_COLOR", values.BackgroundColor)
 	values.TextColor = envString("LIVE_TRANSLATOR_TEXT_COLOR", values.TextColor)
 	values.AlternateTextColor = envString("LIVE_TRANSLATOR_ALTERNATE_TEXT_COLOR", values.AlternateTextColor)
 	values.AlternateLineColors = envBool("LIVE_TRANSLATOR_ALTERNATE_LINE_COLORS", values.AlternateLineColors)
@@ -281,4 +318,15 @@ func normalizeHexColor(value string) (string, bool) {
 	}
 
 	return "#" + upper, true
+}
+
+// normalizeThemeName returns one of the four canonical theme names,
+// falling back to "Dark" for any unrecognised input.
+func normalizeThemeName(value string) string {
+	switch strings.TrimSpace(value) {
+	case "OLED", "Light", "Amber":
+		return strings.TrimSpace(value)
+	default:
+		return "Dark"
+	}
 }
