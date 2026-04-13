@@ -2,6 +2,8 @@
 
 package pipeline
 
+// Pipeline package is Windows-only because the app integrates with Windows Live Captions.
+
 import (
 	"context"
 	"errors"

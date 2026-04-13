@@ -64,7 +64,7 @@ func consumeSentenceChunks(value string) ([]string, string) {
 	if trimmed == "" {
 		return nil, ""
 	}
-	if !hasSentenceTerminator(trimmed) {
+	if !containsTerminatorChar(trimmed) {
 		return nil, trimmed
 	}
 
@@ -100,7 +100,7 @@ func consumeSentenceChunks(value string) ([]string, string) {
 	return chunks, strings.TrimSpace(string(runes[start:]))
 }
 
-func hasSentenceTerminator(value string) bool {
+func containsTerminatorChar(value string) bool {
 	return strings.ContainsAny(value, ".!?…")
 }
 
