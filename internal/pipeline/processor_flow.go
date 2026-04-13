@@ -80,8 +80,7 @@ func (p *Processor) finishSnapshot(source string, value string, canceled bool, f
 }
 
 func (p *Processor) finishSnapshotState(source string, value string, canceled bool, failed bool) (shouldOutput bool, retrySource string, retryDelay time.Duration, outputValue string) {
-	normalized := value
-	outputValue = normalized
+	outputValue = value
 
 	p.mu.Lock()
 	if p.active == source {
@@ -92,7 +91,7 @@ func (p *Processor) finishSnapshotState(source string, value string, canceled bo
 		p.cancel = nil
 	}
 
-	if !canceled && !failed && normalized != "" {
+	if !canceled && !failed && outputValue != "" {
 		shouldOutput = true
 		if source == p.lastInput {
 			p.retryCount = 0
@@ -109,12 +108,7 @@ func (p *Processor) finishSnapshotState(source string, value string, canceled bo
 	p.translating = false
 
 	if p.queued != "" {
-		if canceled {
-			// A newer snapshot already exists, so skip debounce and switch immediately.
-			p.startNextLocked()
-		} else {
-			p.resetDebounceLocked()
-		}
+		p.resetDebounceLocked()
 	}
 	p.mu.Unlock()
 
