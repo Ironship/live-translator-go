@@ -80,7 +80,7 @@ func (p *Processor) finishSnapshot(source string, value string, canceled bool, f
 }
 
 func (p *Processor) finishSnapshotState(source string, value string, canceled bool, failed bool) (bool, string, time.Duration, string) {
-	normalized := textutil.NormalizeCaptionSnapshot(value)
+	normalized := value
 	shouldOutput := false
 	retrySource := ""
 	retryDelay := time.Duration(0)
@@ -110,6 +110,7 @@ func (p *Processor) finishSnapshotState(source string, value string, canceled bo
 
 	if p.queued != "" {
 		if canceled {
+			// A newer snapshot already exists, so skip debounce and switch immediately.
 			p.startNextLocked()
 		} else {
 			p.resetDebounceLocked()

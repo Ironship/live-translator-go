@@ -69,9 +69,6 @@ func consumeSentenceChunks(value string) ([]string, string) {
 	}
 
 	runes := []rune(trimmed)
-	if len(runes) == 0 {
-		return nil, ""
-	}
 
 	chunks := make([]string, 0, 2)
 	start := 0
@@ -104,10 +101,7 @@ func consumeSentenceChunks(value string) ([]string, string) {
 }
 
 func hasSentenceTerminator(value string) bool {
-	if strings.ContainsAny(value, ".!?") {
-		return true
-	}
-	return strings.ContainsRune(value, '…')
+	return strings.ContainsAny(value, ".!?…")
 }
 
 func splitForcedChunk(value string, maxWords int, maxChars int, anchorWords int) (string, string) {
