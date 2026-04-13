@@ -57,7 +57,7 @@ func NewProcessor(config Config, translator Translator, output Output) *Processo
 		config.MaxRetriesPerSnapshot = 2
 	}
 	if config.IdleFlushDelay <= 0 {
-		config.IdleFlushDelay = 1500 * time.Millisecond
+		config.IdleFlushDelay = 300 * time.Millisecond
 	}
 
 	return &Processor{
