@@ -114,9 +114,9 @@ func (c *Controller) ToggleWordByWord() {
 	c.overlay.SetWordByWord(next.WordByWord)
 
 	if next.WordByWord {
-		c.overlay.SetStatus("Word-by-word translation enabled")
+		c.overlay.SetStatus("Fast refresh mode enabled")
 	} else {
-		c.overlay.SetStatus("Word-by-word translation disabled")
+		c.overlay.SetStatus("Fast refresh mode disabled")
 	}
 
 	c.ApplySettings(next)
