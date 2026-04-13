@@ -4,65 +4,71 @@ package pipeline
 
 import "testing"
 
-func TestConsumeSentenceChunks(t *testing.T) {
-	chunks, remainder := consumeSentenceChunks("Hello there. General Kenobi! still waiting")
-	if len(chunks) != 2 {
-		t.Fatalf("expected 2 chunks, got %d", len(chunks))
-	}
-	if chunks[0] != "Hello there." {
-		t.Fatalf("unexpected first chunk: %q", chunks[0])
-	}
-	if chunks[1] != "General Kenobi!" {
-		t.Fatalf("unexpected second chunk: %q", chunks[1])
-	}
-	if remainder != "still waiting" {
-		t.Fatalf("unexpected remainder: %q", remainder)
+func TestExtractCurrentCaptionPartial(t *testing.T) {
+	got := extractCurrentCaption("Hello world. How are you")
+	if got != "How are you" {
+		t.Fatalf("expected %q, got %q", "How are you", got)
 	}
 }
 
-func TestSplitForcedChunkLeavesAnchorTail(t *testing.T) {
-	chunk, remainder := splitForcedChunk("one two three four five six seven eight", 6, 999, 2)
-	if chunk != "one two three four five six" {
-		t.Fatalf("unexpected chunk: %q", chunk)
-	}
-	if remainder != "seven eight" {
-		t.Fatalf("unexpected remainder: %q", remainder)
+func TestExtractCurrentCaptionCompleteLastSentence(t *testing.T) {
+	got := extractCurrentCaption("Hello world. How are you?")
+	if got != "How are you?" {
+		t.Fatalf("expected %q, got %q", "How are you?", got)
 	}
 }
 
-func TestPendingFromCurrentAfterAnchor(t *testing.T) {
-	pending := pendingFromCurrentAfterAnchor("hello world.", "hello world. how are you")
-	if pending != "how are you" {
-		t.Fatalf("unexpected pending tail: %q", pending)
+func TestExtractCurrentCaptionOnlyOneSentence(t *testing.T) {
+	got := extractCurrentCaption("Hello world?")
+	if got != "Hello world?" {
+		t.Fatalf("expected %q, got %q", "Hello world?", got)
 	}
 }
 
-func TestMergePendingSourceWithVisibleCommittedPrefix(t *testing.T) {
-	merged, reset := mergePendingSource("second sentence start", "hello there. second sentence start more words")
-	if reset {
-		t.Fatalf("expected merge without reset")
-	}
-	if merged != "second sentence start more words" {
-		t.Fatalf("unexpected merged value: %q", merged)
+func TestExtractCurrentCaptionNoEOS(t *testing.T) {
+	got := extractCurrentCaption("Hello world")
+	if got != "Hello world" {
+		t.Fatalf("expected %q, got %q", "Hello world", got)
 	}
 }
 
-func TestMergePendingSourceKeepsCorrectionContext(t *testing.T) {
-	merged, reset := mergePendingSource("i think we should too", "i think we should do that")
-	if reset {
-		t.Fatalf("expected merge without reset")
-	}
-	if merged != "i think we should do that" {
-		t.Fatalf("unexpected merged correction: %q", merged)
+func TestExtractCurrentCaptionMultiLine(t *testing.T) {
+	// Newlines are flattened to spaces; last sentence window is extracted.
+	got := extractCurrentCaption("Hello world.\nHow are you?")
+	if got != "How are you?" {
+		t.Fatalf("expected %q, got %q", "How are you?", got)
 	}
 }
 
-func TestMergePendingSourceFallsBackToReset(t *testing.T) {
-	merged, reset := mergePendingSource("i think we should", "new unrelated topic")
-	if !reset {
-		t.Fatalf("expected reset")
+func TestExtractCurrentCaptionShortExtension(t *testing.T) {
+	// "Hi." is very short (< 10 bytes) so we extend back to "Nice. Hi."
+	got := extractCurrentCaption("Long sentence here. Nice. Hi.")
+	if got != "Nice. Hi." {
+		t.Fatalf("expected extended window %q, got %q", "Nice. Hi.", got)
 	}
-	if merged != "new unrelated topic" {
-		t.Fatalf("unexpected reset value: %q", merged)
+}
+
+func TestExtractCurrentCaptionEmpty(t *testing.T) {
+	got := extractCurrentCaption("")
+	if got != "" {
+		t.Fatalf("expected empty, got %q", got)
+	}
+}
+
+func TestIsCompleteCaptionTrue(t *testing.T) {
+	if !isCompleteCaption("Hello world.") {
+		t.Fatal("expected true for sentence ending with '.'")
+	}
+	if !isCompleteCaption("Really?") {
+		t.Fatal("expected true for sentence ending with '?'")
+	}
+}
+
+func TestIsCompleteCaptionFalse(t *testing.T) {
+	if isCompleteCaption("Hello world") {
+		t.Fatal("expected false for sentence without EOS terminal")
+	}
+	if isCompleteCaption("") {
+		t.Fatal("expected false for empty string")
 	}
 }

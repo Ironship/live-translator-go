@@ -50,6 +50,9 @@ func Run() error {
 	window.OnToggleAlwaysOnTop(func() {
 		controller.ToggleAlwaysOnTop()
 	})
+	window.OnToggleWordByWord(func() {
+		controller.ToggleWordByWord()
+	})
 	window.OnIncreaseFontSize(func() {
 		controller.AdjustFontSize(1)
 	})

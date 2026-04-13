@@ -701,6 +701,12 @@ func (w *Window) OnToggleAlwaysOnTop(handler func()) {
 	w.alwaysOnTop.Clicked().Attach(handler)
 }
 
+func (w *Window) OnToggleWordByWord(handler func()) {
+}
+
+func (w *Window) SetWordByWord(enabled bool) {
+}
+
 func (w *Window) OnIncreaseFontSize(handler func()) {
 	w.increaseFontSize = handler
 }

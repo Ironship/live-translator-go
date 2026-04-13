@@ -40,6 +40,7 @@ type Values struct {
 	AlternateLineColors bool   `json:"alternateLineColors"`
 	AlwaysOnTop         bool   `json:"alwaysOnTop"`
 	ClickThrough        bool   `json:"clickThrough"`
+	WordByWord          bool   `json:"wordByWord"`
 }
 
 func DefaultValues() Values {
@@ -188,6 +189,7 @@ func applyEnvOverrides(values Values) Values {
 	values.AlternateLineColors = envBool("LIVE_TRANSLATOR_ALTERNATE_LINE_COLORS", values.AlternateLineColors)
 	values.AlwaysOnTop = envBool("LIVE_TRANSLATOR_ALWAYS_ON_TOP", values.AlwaysOnTop)
 	values.ClickThrough = envBool("LIVE_TRANSLATOR_CLICK_THROUGH", values.ClickThrough)
+	values.WordByWord = envBool("LIVE_TRANSLATOR_WORD_BY_WORD", values.WordByWord)
 	return Sanitize(values)
 }
 

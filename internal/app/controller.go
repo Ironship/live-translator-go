@@ -97,6 +97,31 @@ func (c *Controller) ToggleFocusMode() {
 	_ = c.overlay.ToggleFocusMode()
 }
 
+func (c *Controller) ToggleWordByWord() {
+	current := c.CurrentSettings()
+	next := current
+	next.WordByWord = !current.WordByWord
+
+	if err := settings.Save(next); err != nil {
+		c.overlay.SetStatus("Unable to save word-by-word preference")
+		return
+	}
+
+	c.mu.Lock()
+	c.values = settings.Sanitize(next)
+	c.mu.Unlock()
+
+	c.overlay.SetWordByWord(next.WordByWord)
+
+	if next.WordByWord {
+		c.overlay.SetStatus("Word-by-word translation enabled")
+	} else {
+		c.overlay.SetStatus("Word-by-word translation disabled")
+	}
+
+	c.ApplySettings(next)
+}
+
 func (c *Controller) ToggleAlwaysOnTop() {
 	current := c.CurrentSettings()
 	next := current
@@ -182,6 +207,8 @@ func (c *Controller) ApplySettings(values settings.Values) {
 		c.overlay.SetText(fmt.Sprintf("Overlay update error: %v", err))
 		return
 	}
+
+	c.overlay.SetWordByWord(values.WordByWord)
 
 	if !settings.IsConfigured(values) {
 		c.overlay.SetStatus("Configuration required before translation can start")
