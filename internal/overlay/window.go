@@ -1151,7 +1151,7 @@ func (w *Window) applyPreviewLines(lines []previewLine, animate bool) {
 }
 
 func (w *Window) pushCaptionChunks(finalChunks []string, partialChunk string) {
-	// Remove the existing partial line — it will be replaced or superseded.
+	// Remove the existing partial line — it will be replaced by new content.
 	if len(w.captionHistory) > 0 && w.captionHistory[len(w.captionHistory)-1].Partial {
 		w.captionHistory = w.captionHistory[:len(w.captionHistory)-1]
 	}

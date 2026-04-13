@@ -86,7 +86,7 @@ func committedSuffixMatchesIncomingPrefix(committed []string, incoming []string,
 
 func isSentenceTerminal(value rune) bool {
 	switch value {
-	case '.', '!', '?', '\u2026':
+	case '.', '!', '?', '…':
 		return true
 	default:
 		return false
@@ -95,7 +95,7 @@ func isSentenceTerminal(value rune) bool {
 
 func isSentenceTrailingRune(value rune) bool {
 	switch value {
-	case '"', '\'', ')', ']', '}', '\u201d', '\u2019':
+	case '"', '\'', ')', ']', '}', '”', '’':
 		return true
 	default:
 		return false
