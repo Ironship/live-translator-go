@@ -60,7 +60,15 @@ func pendingFromCurrentAfterAnchor(anchor string, current string) string {
 }
 
 func consumeSentenceChunks(value string) ([]string, string) {
-	runes := []rune(strings.TrimSpace(value))
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return nil, ""
+	}
+	if !hasSentenceTerminator(trimmed) {
+		return nil, trimmed
+	}
+
+	runes := []rune(trimmed)
 	if len(runes) == 0 {
 		return nil, ""
 	}
@@ -93,6 +101,13 @@ func consumeSentenceChunks(value string) ([]string, string) {
 	}
 
 	return chunks, strings.TrimSpace(string(runes[start:]))
+}
+
+func hasSentenceTerminator(value string) bool {
+	if strings.ContainsAny(value, ".!?") {
+		return true
+	}
+	return strings.ContainsRune(value, '…')
 }
 
 func splitForcedChunk(value string, maxWords int, maxChars int, anchorWords int) (string, string) {
