@@ -10,6 +10,53 @@ import (
 )
 
 const minReliableChunkOverlap = 2
+const captionShortThreshold = 10
+
+// extractCurrentCaption returns the last sentence window from a normalized
+// multi-line caption snapshot.
+func extractCurrentCaption(fullText string) string {
+	text := strings.TrimSpace(strings.Join(strings.Fields(strings.ReplaceAll(fullText, "\n", " ")), " "))
+	if text == "" {
+		return ""
+	}
+
+	runes := []rune(text)
+	searchUpTo := len(runes)
+	if isSentenceTerminal(runes[len(runes)-1]) {
+		searchUpTo = len(runes) - 1
+	}
+
+	lastEOS := -1
+	for i := searchUpTo - 1; i >= 0; i-- {
+		if isSentenceTerminal(runes[i]) {
+			lastEOS = i
+			break
+		}
+	}
+
+	latest := strings.TrimSpace(string(runes[lastEOS+1:]))
+	if len(latest) < captionShortThreshold && lastEOS > 0 {
+		prevEOS := -1
+		for i := lastEOS - 1; i >= 0; i-- {
+			if isSentenceTerminal(runes[i]) {
+				prevEOS = i
+				break
+			}
+		}
+
+		extended := strings.TrimSpace(string(runes[prevEOS+1:]))
+		if extended != "" {
+			latest = extended
+		}
+	}
+
+	return latest
+}
+
+func isCompleteCaption(text string) bool {
+	runes := []rune(strings.TrimSpace(text))
+	return len(runes) > 0 && isSentenceTerminal(runes[len(runes)-1])
+}
 
 func mergePendingSource(pending string, current string) (string, bool) {
 	pending = textutil.NormalizeCaption(pending)
