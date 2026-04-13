@@ -55,6 +55,7 @@ type Window struct {
 	speechPanel         *walk.PushButton
 	settings            *walk.PushButton
 	alwaysOnTop         *walk.PushButton
+	wordByWord          *walk.PushButton
 	clearButton         *walk.PushButton
 	focus               *walk.PushButton
 	exit                *walk.PushButton
@@ -77,6 +78,7 @@ type Window struct {
 	settingsVisible     bool
 	focusMode           bool
 	alwaysOnTopEnabled  bool
+	wordByWordEnabled   bool
 	increaseFontSize    func()
 	decreaseFontSize    func()
 }
@@ -344,6 +346,16 @@ func New(config Config) (*Window, error) {
 		return nil, err
 	}
 
+	wordByWordButton, err := walk.NewPushButton(buttonRow)
+	if err != nil {
+		return nil, err
+	}
+	wordByWordButton.SetFont(buttonFont)
+	_ = wordByWordButton.SetText("W×W: Off")
+	if err := wordByWordButton.SetMinMaxSize(walk.Size{86, 34}, walk.Size{16777215, 34}); err != nil {
+		return nil, err
+	}
+
 	clearButton, err := walk.NewPushButton(buttonRow)
 	if err != nil {
 		return nil, err
@@ -378,6 +390,7 @@ func New(config Config) (*Window, error) {
 		speechPanelButton,
 		settingsButton,
 		alwaysOnTopButton,
+		wordByWordButton,
 		clearButton,
 		focusButton,
 		exitButton,
@@ -583,6 +596,7 @@ func New(config Config) (*Window, error) {
 		speechPanel:     speechPanelButton,
 		settings:        settingsButton,
 		alwaysOnTop:     alwaysOnTopButton,
+		wordByWord:      wordByWordButton,
 		clearButton:     clearButton,
 		focus:           focusButton,
 		exit:            exitButton,
@@ -699,6 +713,24 @@ func (w *Window) OnOpenSpeechRecognition(handler func()) {
 
 func (w *Window) OnToggleAlwaysOnTop(handler func()) {
 	w.alwaysOnTop.Clicked().Attach(handler)
+}
+
+func (w *Window) OnToggleWordByWord(handler func()) {
+	w.wordByWord.Clicked().Attach(handler)
+}
+
+func (w *Window) SetWordByWord(enabled bool) {
+	if w.mainWindow.IsDisposed() {
+		return
+	}
+
+	w.mainWindow.Synchronize(func() {
+		if w.mainWindow.IsDisposed() {
+			return
+		}
+
+		w.updateWordByWordButton(enabled)
+	})
 }
 
 func (w *Window) OnIncreaseFontSize(handler func()) {
@@ -1034,6 +1066,17 @@ func (w *Window) updateActionButtons() {
 		_ = w.alwaysOnTop.SetText("On Top: On")
 	} else {
 		_ = w.alwaysOnTop.SetText("On Top: Off")
+	}
+
+	w.updateWordByWordButton(w.wordByWordEnabled)
+}
+
+func (w *Window) updateWordByWordButton(enabled bool) {
+	w.wordByWordEnabled = enabled
+	if enabled {
+		_ = w.wordByWord.SetText("W×W: On")
+	} else {
+		_ = w.wordByWord.SetText("W×W: Off")
 	}
 }
 
