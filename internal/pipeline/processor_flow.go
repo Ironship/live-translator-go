@@ -78,10 +78,9 @@ func (p *Processor) translateSnapshot(source string, requestCtx context.Context,
 }
 
 func (p *Processor) finishSnapshot(source string, value string, canceled bool, failed bool) {
-	shouldOutput, retrySource, retryDelay, outputValue := p.computeSnapshotOutcome(source, value, canceled, failed)
+	shouldOutput, retrySource, retryDelay, chunks, remainder := p.computeSnapshotOutcome(source, value, canceled, failed)
 
 	if shouldOutput {
-		chunks, remainder := consumeSentenceChunks(outputValue)
 		p.output.PushCaption(chunks, remainder)
 	}
 
@@ -90,8 +89,8 @@ func (p *Processor) finishSnapshot(source string, value string, canceled bool, f
 	}
 }
 
-func (p *Processor) computeSnapshotOutcome(source string, value string, canceled bool, failed bool) (shouldOutput bool, retrySource string, retryDelay time.Duration, outputValue string) {
-	outputValue = textutil.NormalizeCaptionSnapshot(value)
+func (p *Processor) computeSnapshotOutcome(source string, value string, canceled bool, failed bool) (shouldOutput bool, retrySource string, retryDelay time.Duration, chunks []string, remainder string) {
+	outputValue := textutil.NormalizeCaptionSnapshot(value)
 
 	p.mu.Lock()
 	if p.active == source {
@@ -107,6 +106,22 @@ func (p *Processor) computeSnapshotOutcome(source string, value string, canceled
 		if source == p.lastInput {
 			p.retryCount = 0
 		}
+		
+		outputChunks, outputRemainder := consumeSentenceChunks(outputValue)
+		sourceChunks, sourceRemainder := consumeSentenceChunks(source)
+		
+		if sourceRemainder == "" && outputRemainder != "" {
+			outputChunks = append(outputChunks, outputRemainder)
+			outputRemainder = ""
+		}
+
+		if len(outputChunks) > 0 {
+			p.committedSrc = append(p.committedSrc, sourceChunks...)
+		}
+
+		chunks = chunksDelta(p.committed, outputChunks)
+		p.committed = append([]string(nil), outputChunks...)
+		remainder = outputRemainder
 	}
 
 	if failed && source == p.lastInput && p.retryCount < p.config.MaxRetriesPerSnapshot && !p.retryPending {
@@ -123,7 +138,7 @@ func (p *Processor) computeSnapshotOutcome(source string, value string, canceled
 	}
 	p.mu.Unlock()
 
-	return shouldOutput, retrySource, retryDelay, outputValue
+	return shouldOutput, retrySource, retryDelay, chunks, remainder
 }
 
 func (p *Processor) scheduleRetry(retrySource string, retryDelay time.Duration) {

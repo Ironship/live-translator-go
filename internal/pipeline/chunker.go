@@ -249,6 +249,43 @@ func findAnchorSuffix(anchor []string, current []string, preferEarliest bool) (i
 	return bestStart, bestLen
 }
 
+func chunksDelta(committed []string, incoming []string) []string {
+	if len(incoming) == 0 {
+		return nil
+	}
+	if len(committed) == 0 {
+		return append([]string(nil), incoming...)
+	}
+
+	maxOverlap := len(committed)
+	if len(incoming) < maxOverlap {
+		maxOverlap = len(incoming)
+	}
+
+	for overlap := maxOverlap; overlap > 0; overlap-- {
+		if committedSuffixMatchesIncomingPrefix(committed, incoming, overlap) {
+			if overlap >= len(incoming) {
+				return nil
+			}
+			return append([]string(nil), incoming[overlap:]...)
+		}
+	}
+
+	return append([]string(nil), incoming...)
+}
+
+func committedSuffixMatchesIncomingPrefix(committed []string, incoming []string, n int) bool {
+	if n > len(committed) || n > len(incoming) {
+		return false
+	}
+	for i := 0; i < n; i++ {
+		if committed[len(committed)-n+i] != incoming[i] {
+			return false
+		}
+	}
+	return true
+}
+
 func tokenSlicesEqual(left []string, right []string) bool {
 	if len(left) != len(right) {
 		return false

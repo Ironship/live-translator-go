@@ -4,6 +4,7 @@ package pipeline
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"time"
 
@@ -38,6 +39,8 @@ type Processor struct {
 	lastInput     string
 	queued        string
 	active        string
+	committed     []string
+	committedSrc  []string
 	translating   bool
 	cancel        context.CancelFunc
 	retryPending  bool
@@ -69,11 +72,9 @@ func NewProcessor(config Config, translator Translator, output Output) *Processo
 
 func (p *Processor) Submit(parent context.Context, input string) {
 	normalized := textutil.NormalizeCaptionSnapshot(input)
-	if normalized == "" {
-		return
+	if len(p.committedSrc) > 0 {
+		normalized = pendingFromCurrentAfterAnchor(strings.Join(p.committedSrc, " "), normalized)
 	}
-
-	normalized = extractCurrentCaption(normalized)
 	if normalized == "" {
 		return
 	}
@@ -129,5 +130,7 @@ func (p *Processor) Close() {
 
 	p.queued = ""
 	p.active = ""
+	p.committed = nil
+	p.committedSrc = nil
 	p.translating = false
 }
