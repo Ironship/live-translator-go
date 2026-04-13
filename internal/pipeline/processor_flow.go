@@ -79,18 +79,18 @@ func (p *Processor) finishSnapshot(source string, value string, canceled bool, f
 	}
 }
 
-func (p *Processor) finishSnapshotState(source string, value string, canceled bool, failed bool) (bool, string, time.Duration, string) {
+func (p *Processor) finishSnapshotState(source string, value string, canceled bool, failed bool) (shouldOutput bool, retrySource string, retryDelay time.Duration, outputValue string) {
 	normalized := value
-	shouldOutput := false
-	retrySource := ""
-	retryDelay := time.Duration(0)
+	outputValue = normalized
 
 	p.mu.Lock()
 	if p.active == source {
 		p.active = ""
 	}
 
-	p.cancel = nil
+	if p.cancel != nil {
+		p.cancel = nil
+	}
 
 	if !canceled && !failed && normalized != "" {
 		shouldOutput = true
@@ -118,7 +118,7 @@ func (p *Processor) finishSnapshotState(source string, value string, canceled bo
 	}
 	p.mu.Unlock()
 
-	return shouldOutput, retrySource, retryDelay, normalized
+	return shouldOutput, retrySource, retryDelay, outputValue
 }
 
 func (p *Processor) scheduleRetry(retrySource string, retryDelay time.Duration) {

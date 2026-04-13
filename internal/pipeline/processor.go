@@ -94,6 +94,7 @@ func (p *Processor) Submit(parent context.Context, input string) {
 		if wasEmpty {
 			p.firstQueued = time.Now()
 		}
+		// Newer snapshot should preempt stale in-flight translation work.
 		if p.active != normalized && p.cancel != nil {
 			p.cancel()
 		}
