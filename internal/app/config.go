@@ -21,7 +21,7 @@ type Config struct {
 	RequestFrequency time.Duration
 }
 
-const wordByWordRequestFrequency = 50 * time.Millisecond
+const fastRefreshRequestFrequency = 50 * time.Millisecond
 
 func LoadSettings() (settings.Values, error) {
 	return settings.Load()
@@ -32,7 +32,7 @@ func ConfigFromSettings(values settings.Values) Config {
 
 	requestFrequency := time.Duration(values.RequestFrequencyMs) * time.Millisecond
 	if values.WordByWord {
-		requestFrequency = wordByWordRequestFrequency
+		requestFrequency = fastRefreshRequestFrequency
 	}
 
 	return Config{

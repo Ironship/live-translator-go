@@ -45,7 +45,7 @@ type settingsPanel struct {
 	alternateLinesBox *walk.CheckBox
 	alwaysOnTopBox    *walk.CheckBox
 	clickThroughBox   *walk.CheckBox
-	wordByWordBox     *walk.CheckBox
+	fastRefreshBox    *walk.CheckBox
 	statusLabel       *walk.Label
 	selectedProvider  string
 	base              settings.Values
@@ -292,14 +292,14 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	if err != nil {
 		return nil, err
 	}
-	panel.wordByWordBox, err = walk.NewCheckBox(timingGroup)
+	panel.fastRefreshBox, err = walk.NewCheckBox(timingGroup)
 	if err != nil {
 		return nil, err
 	}
 	if sectionBrush != nil {
-		panel.wordByWordBox.SetBackground(sectionBrush)
+		panel.fastRefreshBox.SetBackground(sectionBrush)
 	}
-	_ = panel.wordByWordBox.SetText("Use fast refresh mode")
+	_ = panel.fastRefreshBox.SetText("Use fast refresh mode")
 	if _, err := addSettingsGroupNote(timingGroup, "When enabled, uses a faster 50ms refresh rate instead of the Request frequency ms value above."); err != nil {
 		return nil, err
 	}
@@ -416,7 +416,7 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 		panel.alternateLinesBox,
 		panel.alwaysOnTopBox,
 		panel.clickThroughBox,
-		panel.wordByWordBox,
+		panel.fastRefreshBox,
 		applyButton,
 		testButton,
 		cancelButton,
@@ -476,7 +476,7 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 			panel.alternateLinesBox.Checked(),
 			panel.alwaysOnTopBox.Checked(),
 			panel.clickThroughBox.Checked(),
-			panel.wordByWordBox.Checked(),
+			panel.fastRefreshBox.Checked(),
 		)
 		if validationMessage != "" {
 			panel.showError(validationMessage)
@@ -581,7 +581,7 @@ func (p *settingsPanel) Load(values settings.Values) {
 	p.alternateLinesBox.SetChecked(values.AlternateLineColors)
 	p.alwaysOnTopBox.SetChecked(values.AlwaysOnTop)
 	p.clickThroughBox.SetChecked(values.ClickThrough)
-	p.wordByWordBox.SetChecked(values.WordByWord)
+	p.fastRefreshBox.SetChecked(values.WordByWord)
 	p.updateProviderRows(values.Provider)
 	p.updateAppearanceRows()
 	p.clearStatus()
