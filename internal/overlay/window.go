@@ -68,7 +68,6 @@ type Window struct {
 	focusStageB         *walk.SolidColorBrush
 	lastText            string
 	captionHistory      []previewLine
-	lastCaptionSnapshot []string
 	currentConfig       Config
 	collapsedBounds     walk.Rectangle
 	expandedBounds      walk.Rectangle
@@ -863,7 +862,6 @@ func (w *Window) SetText(value string) {
 			return
 		}
 		w.captionHistory = nil
-		w.lastCaptionSnapshot = nil
 		w.applyPreviewLines(appendPreviewTextsWithPersistentColors(nil, splitCaptionLines(text)...), false)
 	})
 }
@@ -877,7 +875,6 @@ func (w *Window) Clear() {
 			return
 		}
 		w.captionHistory = nil
-		w.lastCaptionSnapshot = nil
 		w.applyPreviewLines(nil, false)
 	})
 }
@@ -1154,145 +1151,24 @@ func (w *Window) applyPreviewLines(lines []previewLine, animate bool) {
 }
 
 func (w *Window) pushCaptionChunks(finalChunks []string, partialChunk string) {
-	var combined []string
-	combined = append(combined, finalChunks...)
-	if partialChunk != "" {
-		combined = append(combined, partialChunk)
+	// Remove the existing partial line — it will be replaced or superseded.
+	if len(w.captionHistory) > 0 && w.captionHistory[len(w.captionHistory)-1].Partial {
+		w.captionHistory = w.captionHistory[:len(w.captionHistory)-1]
 	}
 
-	incoming := compactCaptionLines(combined)
-	if len(incoming) == 0 {
-		return
-	}
+	// Append final chunks (processor guarantees these are genuinely new).
+	w.captionHistory = appendPreviewTextsWithPersistentColors(w.captionHistory, finalChunks...)
 
-	if len(w.lastCaptionSnapshot) == 0 {
-		w.captionHistory = nil
-	}
-
-	if replacement, ok := newestCaptionReplacement(w.lastCaptionSnapshot, incoming); ok {
-		w.captionHistory = replaceLastPreviewCaption(w.captionHistory, replacement)
-	}
-
-	// Before appending, remove any existing history entries that are
-	// superseded by the incoming lines (e.g. a partial chunk "w jego"
-	// that is now part of a full sentence "w jego To jest trudna rzecz").
-	w.captionHistory = removeSupersededCaptions(w.captionHistory, incoming)
-
-	appended := appendedCaptionLines(w.lastCaptionSnapshot, incoming)
-	if len(appended) > 0 {
-		w.captionHistory = appendPreviewTextsWithPersistentColors(w.captionHistory, appended...)
-	}
-
+	// Trim history to the visible limit.
 	w.captionHistory = trimPreviewHistory(w.captionHistory, w.previewHistoryLimit())
-	w.lastCaptionSnapshot = append([]string(nil), incoming...)
 
-	for i := range w.captionHistory {
-		w.captionHistory[i].Partial = false
-	}
-	if partialChunk != "" && len(w.captionHistory) > 0 {
-		w.captionHistory[len(w.captionHistory)-1].Partial = true
-	}
-}
-
-func appendedCaptionLines(previous []string, incoming []string) []string {
-	if len(incoming) == 0 {
-		return nil
-	}
-	if len(previous) == 0 {
-		return append([]string(nil), incoming...)
-	}
-
-	overlap := findCaptionOverlap(previous, incoming)
-	if overlap > 0 {
-		return append([]string(nil), incoming[overlap:]...)
-	}
-
-	if _, ok := newestCaptionReplacement(previous, incoming); ok {
-		return nil
-	}
-
-	appended := make([]string, 0, len(incoming))
-	for _, line := range incoming {
-		if !captionSliceContainsComparable(previous, line) {
-			appended = append(appended, line)
+	// Add the partial chunk (if any) as the last entry, marked partial.
+	if partialChunk != "" {
+		w.captionHistory = appendPreviewTextsWithPersistentColors(w.captionHistory, partialChunk)
+		if len(w.captionHistory) > 0 {
+			w.captionHistory[len(w.captionHistory)-1].Partial = true
 		}
 	}
-
-	if len(appended) == 0 {
-		return nil
-	}
-
-	return appended
-}
-
-func newestCaptionReplacement(previous []string, incoming []string) (string, bool) {
-	if len(previous) == 0 || len(incoming) == 0 {
-		return "", false
-	}
-
-	previousLast := previous[len(previous)-1]
-	incomingLast := incoming[len(incoming)-1]
-	if !shouldReplaceCaption(previousLast, incomingLast) && !sameCaptionIdentity(previousLast, incomingLast) {
-		return "", false
-	}
-	if captionComparisonKey(previousLast) == captionComparisonKey(incomingLast) {
-		return "", false
-	}
-
-	return incomingLast, true
-}
-
-func captionSliceContainsComparable(lines []string, target string) bool {
-	for _, line := range lines {
-		if shouldReplaceCaption(line, target) || sameCaptionIdentity(line, target) {
-			return true
-		}
-	}
-
-	return false
-}
-
-func replaceLastPreviewCaption(lines []previewLine, value string) []previewLine {
-	if len(lines) == 0 {
-		return nil
-	}
-
-	updated := append([]previewLine(nil), lines...)
-	updated[len(updated)-1].Text = strings.TrimSpace(value)
-	return compactPreviewLines(updated)
-}
-
-// removeSupersededCaptions removes any history entries whose key is a strict
-// prefix of an incoming line's key. This handles partial chunks appearing
-// before the full sentence arrives (e.g. "w jego" → "w jego To jest trudna rzecz").
-// Only strict prefix matching is used — fuzzy matching is too aggressive and
-// causes false positive removal of unrelated sentences.
-func removeSupersededCaptions(history []previewLine, incoming []string) []previewLine {
-	if len(history) == 0 || len(incoming) == 0 {
-		return history
-	}
-
-	kept := make([]previewLine, 0, len(history))
-	for _, line := range history {
-		lineKey := captionComparisonKey(line.Text)
-		superseded := false
-		for _, inc := range incoming {
-			incKey := captionComparisonKey(inc)
-			if lineKey == "" || incKey == "" || lineKey == incKey {
-				continue
-			}
-			// Only remove if this history entry is a strict prefix of an incoming line.
-			if strings.HasPrefix(incKey, lineKey) {
-				superseded = true
-				break
-			}
-		}
-		if !superseded {
-			kept = append(kept, line)
-		}
-	}
-
-	return kept
 }
 
 func (w *Window) previewHistoryLimit() int {

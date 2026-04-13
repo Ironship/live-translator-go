@@ -22,9 +22,6 @@ type Output interface {
 type Config struct {
 	RequestTimeout        time.Duration
 	IdleFlushDelay        time.Duration
-	ForceChunkWords       int
-	ForceChunkChars       int
-	ForceChunkAnchorWords int
 	RetryDelay            time.Duration
 	MaxRetriesPerSnapshot int
 }
@@ -39,6 +36,7 @@ type Processor struct {
 	lastInput     string
 	queued        string
 	active        string
+	committed     []string
 	translating   bool
 	cancel        context.CancelFunc
 	retryPending  bool
@@ -124,6 +122,7 @@ func (p *Processor) Close() {
 
 	p.queued = ""
 	p.active = ""
+	p.committed = nil
 	p.translating = false
 }
 
@@ -191,6 +190,8 @@ func (p *Processor) finishSnapshot(source string, value string, canceled bool, f
 	shouldOutput := false
 	retrySource := ""
 	retryDelay := time.Duration(0)
+	var delta []string
+	var remainder string
 
 	p.mu.Lock()
 	if p.active == source {
@@ -205,6 +206,10 @@ func (p *Processor) finishSnapshot(source string, value string, canceled bool, f
 		if source == p.lastInput {
 			p.retryCount = 0
 		}
+		chunks, rem := consumeSentenceChunks(value)
+		delta = chunksDelta(p.committed, chunks)
+		p.committed = append([]string(nil), chunks...)
+		remainder = rem
 	}
 
 	if failed && source == p.lastInput && p.retryCount < p.config.MaxRetriesPerSnapshot && !p.retryPending {
@@ -224,8 +229,7 @@ func (p *Processor) finishSnapshot(source string, value string, canceled bool, f
 	p.mu.Unlock()
 
 	if shouldOutput {
-		chunks, remainder := consumeSentenceChunks(value)
-		p.output.PushCaption(chunks, remainder)
+		p.output.PushCaption(delta, remainder)
 	}
 
 	if retrySource != "" {
