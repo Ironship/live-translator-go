@@ -28,6 +28,11 @@ func LoadSettings() (settings.Values, error) {
 func ConfigFromSettings(values settings.Values) Config {
 	values = settings.Sanitize(values)
 
+	requestFrequency := time.Duration(values.RequestFrequencyMs) * time.Millisecond
+	if values.WordByWord {
+		requestFrequency = 50 * time.Millisecond
+	}
+
 	return Config{
 		Captions: captions.Config{
 			ProcessName:     values.CaptionProcessName,
@@ -59,7 +64,7 @@ func ConfigFromSettings(values settings.Values) Config {
 			ClickThrough:        values.ClickThrough,
 		},
 		RequestTimeout:   time.Duration(values.RequestTimeoutMs) * time.Millisecond,
-		RequestFrequency: time.Duration(values.RequestFrequencyMs) * time.Millisecond,
+		RequestFrequency: requestFrequency,
 	}
 }
 
