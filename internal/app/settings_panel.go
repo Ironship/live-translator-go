@@ -300,7 +300,7 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 		panel.wordByWordBox.SetBackground(sectionBrush)
 	}
 	_ = panel.wordByWordBox.SetText("Use fast refresh mode")
-	if _, err := addSettingsGroupNote(timingGroup, "When enabled, uses a faster 50ms refresh rate. Request frequency ms is ignored."); err != nil {
+	if _, err := addSettingsGroupNote(timingGroup, "When enabled, uses a faster 50ms refresh rate instead of the Request frequency ms value above."); err != nil {
 		return nil, err
 	}
 
