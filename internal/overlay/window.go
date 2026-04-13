@@ -702,9 +702,13 @@ func (w *Window) OnToggleAlwaysOnTop(handler func()) {
 }
 
 func (w *Window) OnToggleWordByWord(handler func()) {
+	// Word-by-word mode is controlled from settings.
+	// Keep this hook as a no-op for compatibility with controller wiring.
 }
 
 func (w *Window) SetWordByWord(enabled bool) {
+	// The overlay has no dedicated word-by-word toggle button in this branch.
+	// Keep this method as a no-op to satisfy the controller contract.
 }
 
 func (w *Window) OnIncreaseFontSize(handler func()) {
