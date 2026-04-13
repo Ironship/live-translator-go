@@ -259,6 +259,8 @@ func (p *Processor) finishSnapshot(source string, value string, canceled bool, f
 	}
 }
 
+// shouldTranslateImmediately returns true when caption text appears sentence-complete,
+// allowing the pipeline to bypass debounce and send translation right away.
 func shouldTranslateImmediately(value string) bool {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
