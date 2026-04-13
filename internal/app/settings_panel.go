@@ -299,7 +299,7 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	if sectionBrush != nil {
 		panel.wordByWordBox.SetBackground(sectionBrush)
 	}
-	_ = panel.wordByWordBox.SetText("Use fast refresh mode (50 ms updates)")
+	_ = panel.wordByWordBox.SetText("Use fast refresh mode")
 	if _, err := addSettingsGroupNote(timingGroup, "When enabled, translations start immediately on each caption change. Request frequency ms is ignored."); err != nil {
 		return nil, err
 	}
