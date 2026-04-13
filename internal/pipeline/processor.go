@@ -73,6 +73,11 @@ func (p *Processor) Submit(parent context.Context, input string) {
 		return
 	}
 
+	normalized = extractCurrentCaption(normalized)
+	if normalized == "" {
+		return
+	}
+
 	p.mu.Lock()
 	defer p.mu.Unlock()
 

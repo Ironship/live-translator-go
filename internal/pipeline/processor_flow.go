@@ -13,6 +13,15 @@ import (
 )
 
 func (p *Processor) resetDebounceLocked() {
+	if isCompleteCaption(p.queued) {
+		if p.debounceTimer != nil {
+			p.debounceTimer.Stop()
+			p.debounceTimer = nil
+		}
+		p.startNextLocked()
+		return
+	}
+
 	if p.debounceTimer != nil {
 		maxWait := p.config.IdleFlushDelay*2 + (p.config.IdleFlushDelay / 2)
 		if time.Since(p.firstQueued) >= maxWait {

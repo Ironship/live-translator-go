@@ -351,7 +351,7 @@ func New(config Config) (*Window, error) {
 	}
 	wordByWordButton.SetFont(buttonFont)
 	_ = wordByWordButton.SetText("W×W: Off")
-	if err := wordByWordButton.SetMinMaxSize(walk.Size{86, 34}, walk.Size{16777215, 34}); err != nil {
+	if err := wordByWordButton.SetMinMaxSize(walk.Size{Width: 86, Height: 34}, walk.Size{Width: 16777215, Height: 34}); err != nil {
 		return nil, err
 	}
 

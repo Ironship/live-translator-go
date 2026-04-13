@@ -21,9 +21,14 @@ func extractCurrentCaption(fullText string) string {
 	}
 
 	runes := []rune(text)
+	effectiveEnd := len(runes)
+	for effectiveEnd > 0 && isSentenceTrailingRune(runes[effectiveEnd-1]) {
+		effectiveEnd--
+	}
+
 	searchUpTo := len(runes)
-	if isSentenceTerminal(runes[len(runes)-1]) {
-		searchUpTo = len(runes) - 1
+	if effectiveEnd > 0 && isSentenceTerminal(runes[effectiveEnd-1]) {
+		searchUpTo = effectiveEnd - 1
 	}
 
 	lastEOS := -1
@@ -55,7 +60,17 @@ func extractCurrentCaption(fullText string) string {
 
 func isCompleteCaption(text string) bool {
 	runes := []rune(strings.TrimSpace(text))
-	return len(runes) > 0 && isSentenceTerminal(runes[len(runes)-1])
+	if len(runes) == 0 {
+		return false
+	}
+	i := len(runes) - 1
+	for i >= 0 && isSentenceTrailingRune(runes[i]) {
+		i--
+	}
+	if i >= 0 && isSentenceTerminal(runes[i]) {
+		return true
+	}
+	return false
 }
 
 func mergePendingSource(pending string, current string) (string, bool) {
