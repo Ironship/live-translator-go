@@ -3,101 +3,80 @@
 package pipeline
 
 import (
-	"strings"
-	"unicode"
+"strings"
 )
 
-func consumeSentenceChunks(value string) ([]string, string) {
-	runes := []rune(strings.TrimSpace(value))
-	if len(runes) == 0 {
-		return nil, ""
-	}
+// captionShortThreshold matches the reference project's TextUtil.SHORT_THRESHOLD (10 bytes).
+// When the extracted current-sentence window is shorter than this, we extend it
+// back one sentence to provide the translator with better context.
+const captionShortThreshold = 10
 
-	chunks := make([]string, 0, 2)
-	start := 0
-	for index := 0; index < len(runes); index++ {
-		if !isSentenceTerminal(runes[index]) {
-			continue
-		}
-
-		end := index + 1
-		for end < len(runes) && isSentenceTrailingRune(runes[end]) {
-			end++
-		}
-		if end < len(runes) && !unicode.IsSpace(runes[end]) {
-			continue
-		}
-
-		chunk := strings.TrimSpace(string(runes[start:end]))
-		if chunk != "" {
-			chunks = append(chunks, chunk)
-		}
-
-		for end < len(runes) && unicode.IsSpace(runes[end]) {
-			end++
-		}
-		start = end
-		index = end - 1
-	}
-
-	return chunks, strings.TrimSpace(string(runes[start:]))
+// extractCurrentCaption returns the last sentence window from a normalised
+// multi-line caption snapshot. The algorithm mirrors the reference project
+// (SakiRinn/LiveCaptions-Translator) SyncLoop extraction logic:
+//
+//   - If the snapshot ends with an EOS terminal, we find the second-to-last EOS
+//     so the returned window is the last complete sentence.
+//   - Otherwise we find the last EOS and return the partial sentence after it.
+//   - If the resulting window is shorter than captionShortThreshold bytes, we
+//     extend back one more sentence for translation context.
+func extractCurrentCaption(fullText string) string {
+// Flatten any newlines to spaces so EOS detection works across lines.
+text := strings.TrimSpace(strings.Join(strings.Fields(strings.ReplaceAll(fullText, "\n", " ")), " "))
+if text == "" {
+return ""
 }
 
-// chunksDelta returns the elements of incoming that are not already represented
-// at the tail of committed. It finds the longest suffix of committed that
-// equals a prefix of incoming (by exact string match) and returns the
-// non-overlapping tail of incoming as genuinely new chunks.
-func chunksDelta(committed []string, incoming []string) []string {
-	if len(incoming) == 0 {
-		return nil
-	}
-	if len(committed) == 0 {
-		return append([]string(nil), incoming...)
-	}
+runes := []rune(text)
 
-	maxOverlap := len(committed)
-	if len(incoming) < maxOverlap {
-		maxOverlap = len(incoming)
-	}
-
-	for overlap := maxOverlap; overlap > 0; overlap-- {
-		if committedSuffixMatchesIncomingPrefix(committed, incoming, overlap) {
-			if overlap >= len(incoming) {
-				return nil
-			}
-			return append([]string(nil), incoming[overlap:]...)
-		}
-	}
-
-	return append([]string(nil), incoming...)
+// If the last character is an EOS terminal, exclude it from the search so
+// we find the boundary before the last sentence (giving us the full last
+// complete sentence including its terminal).
+searchUpTo := len(runes)
+if isSentenceTerminal(runes[len(runes)-1]) {
+searchUpTo = len(runes) - 1
 }
 
-func committedSuffixMatchesIncomingPrefix(committed []string, incoming []string, n int) bool {
-	if n > len(committed) || n > len(incoming) {
-		return false
-	}
-	for i := 0; i < n; i++ {
-		if committed[len(committed)-n+i] != incoming[i] {
-			return false
-		}
-	}
-	return true
+lastEOS := -1
+for i := searchUpTo - 1; i >= 0; i-- {
+if isSentenceTerminal(runes[i]) {
+lastEOS = i
+break
+}
+}
+
+latest := strings.TrimSpace(string(runes[lastEOS+1:]))
+
+// Extend back one sentence when the window is too short.
+if len(latest) < captionShortThreshold && lastEOS > 0 {
+prevEOS := -1
+for i := lastEOS - 1; i >= 0; i-- {
+if isSentenceTerminal(runes[i]) {
+prevEOS = i
+break
+}
+}
+extended := strings.TrimSpace(string(runes[prevEOS+1:]))
+if extended != "" {
+latest = extended
+}
+}
+
+return latest
+}
+
+// isCompleteCaption reports whether text ends with a sentence-terminal rune,
+// meaning it is a finished sentence rather than in-progress speech.
+func isCompleteCaption(text string) bool {
+runes := []rune(strings.TrimSpace(text))
+return len(runes) > 0 && isSentenceTerminal(runes[len(runes)-1])
 }
 
 func isSentenceTerminal(value rune) bool {
-	switch value {
-	case '.', '!', '?', '…':
-		return true
-	default:
-		return false
-	}
+switch value {
+case '.', '!', '?', '…':
+return true
+default:
+return false
 }
-
-func isSentenceTrailingRune(value rune) bool {
-	switch value {
-	case '"', '\'', ')', ']', '}', '”', '’':
-		return true
-	default:
-		return false
-	}
 }

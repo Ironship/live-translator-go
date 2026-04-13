@@ -4,66 +4,71 @@ package pipeline
 
 import "testing"
 
-func TestConsumeSentenceChunks(t *testing.T) {
-	chunks, remainder := consumeSentenceChunks("Hello there. General Kenobi! still waiting")
-	if len(chunks) != 2 {
-		t.Fatalf("expected 2 chunks, got %d", len(chunks))
-	}
-	if chunks[0] != "Hello there." {
-		t.Fatalf("unexpected first chunk: %q", chunks[0])
-	}
-	if chunks[1] != "General Kenobi!" {
-		t.Fatalf("unexpected second chunk: %q", chunks[1])
-	}
-	if remainder != "still waiting" {
-		t.Fatalf("unexpected remainder: %q", remainder)
-	}
+func TestExtractCurrentCaptionPartial(t *testing.T) {
+got := extractCurrentCaption("Hello world. How are you")
+if got != "How are you" {
+t.Fatalf("expected %q, got %q", "How are you", got)
+}
 }
 
-func TestChunksDeltaEmptyCommitted(t *testing.T) {
-	delta := chunksDelta(nil, []string{"Hello.", "World."})
-	if len(delta) != 2 || delta[0] != "Hello." || delta[1] != "World." {
-		t.Fatalf("expected all incoming as delta, got %#v", delta)
-	}
+func TestExtractCurrentCaptionCompleteLastSentence(t *testing.T) {
+got := extractCurrentCaption("Hello world. How are you?")
+if got != "How are you?" {
+t.Fatalf("expected %q, got %q", "How are you?", got)
+}
 }
 
-func TestChunksDeltaFullOverlap(t *testing.T) {
-	committed := []string{"Hello.", "World."}
-	delta := chunksDelta(committed, []string{"Hello.", "World."})
-	if len(delta) != 0 {
-		t.Fatalf("expected empty delta for identical sets, got %#v", delta)
-	}
+func TestExtractCurrentCaptionOnlyOneSentence(t *testing.T) {
+got := extractCurrentCaption("Hello world?")
+if got != "Hello world?" {
+t.Fatalf("expected %q, got %q", "Hello world?", got)
+}
 }
 
-func TestChunksDeltaPartialOverlap(t *testing.T) {
-	committed := []string{"Hello.", "World."}
-	delta := chunksDelta(committed, []string{"Hello.", "World.", "New sentence."})
-	if len(delta) != 1 || delta[0] != "New sentence." {
-		t.Fatalf("expected one new chunk, got %#v", delta)
-	}
+func TestExtractCurrentCaptionNoEOS(t *testing.T) {
+got := extractCurrentCaption("Hello world")
+if got != "Hello world" {
+t.Fatalf("expected %q, got %q", "Hello world", got)
+}
 }
 
-func TestChunksDeltaScrollForward(t *testing.T) {
-	committed := []string{"A.", "B.", "C."}
-	delta := chunksDelta(committed, []string{"B.", "C.", "D."})
-	if len(delta) != 1 || delta[0] != "D." {
-		t.Fatalf("expected one new chunk after scroll, got %#v", delta)
-	}
+func TestExtractCurrentCaptionMultiLine(t *testing.T) {
+// Newlines are flattened to spaces; last sentence window is extracted.
+got := extractCurrentCaption("Hello world.\nHow are you?")
+if got != "How are you?" {
+t.Fatalf("expected %q, got %q", "How are you?", got)
+}
 }
 
-func TestChunksDeltaTopicChange(t *testing.T) {
-	committed := []string{"Hello.", "World."}
-	delta := chunksDelta(committed, []string{"Completely.", "Different."})
-	if len(delta) != 2 || delta[0] != "Completely." || delta[1] != "Different." {
-		t.Fatalf("expected all incoming for topic change, got %#v", delta)
-	}
+func TestExtractCurrentCaptionShortExtension(t *testing.T) {
+// "Hi." is very short (< 10 bytes) so we extend back to "Nice. Hi."
+got := extractCurrentCaption("Long sentence here. Nice. Hi.")
+if got != "Nice. Hi." {
+t.Fatalf("expected extended window %q, got %q", "Nice. Hi.", got)
+}
 }
 
-func TestChunksDeltaNilIncoming(t *testing.T) {
-	committed := []string{"Hello."}
-	delta := chunksDelta(committed, nil)
-	if delta != nil {
-		t.Fatalf("expected nil delta for nil incoming, got %#v", delta)
-	}
+func TestExtractCurrentCaptionEmpty(t *testing.T) {
+got := extractCurrentCaption("")
+if got != "" {
+t.Fatalf("expected empty, got %q", got)
+}
 }
 
+func TestIsCompleteCaptionTrue(t *testing.T) {
+if !isCompleteCaption("Hello world.") {
+t.Fatal("expected true for sentence ending with '.'")
+}
+if !isCompleteCaption("Really?") {
+t.Fatal("expected true for sentence ending with '?'")
+}
+}
+
+func TestIsCompleteCaptionFalse(t *testing.T) {
+if isCompleteCaption("Hello world") {
+t.Fatal("expected false for sentence without EOS terminal")
+}
+if isCompleteCaption("") {
+t.Fatal("expected false for empty string")
+}
+}
