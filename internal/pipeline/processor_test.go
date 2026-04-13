@@ -184,3 +184,48 @@ func TestProcessorRetriesOnFailureWithoutOutputtingSource(t *testing.T) {
 		t.Fatalf("expected exactly one output after retry recovery, got %d (%#v)", len(values), values)
 	}
 }
+
+func TestProcessorStartsImmediatelyWhenSentenceIsComplete(t *testing.T) {
+	out := newRecordingOutput()
+	translator := newControllableTranslator()
+	processor := NewProcessor(Config{
+		RequestTimeout: 2 * time.Second,
+		IdleFlushDelay: 1200 * time.Millisecond,
+	}, translator, out)
+	defer processor.Close()
+
+	processor.Submit(context.Background(), "hello world.")
+
+	deadline := time.Now().Add(300 * time.Millisecond)
+	for {
+		translator.mu.Lock()
+		callCount := len(translator.calls)
+		first := ""
+		if callCount > 0 {
+			first = translator.calls[0]
+		}
+		translator.mu.Unlock()
+
+		if callCount > 0 {
+			if first != "hello world." {
+				t.Fatalf("unexpected first translator input: %q", first)
+			}
+			break
+		}
+
+		if time.Now().After(deadline) {
+			t.Fatalf("translator did not start immediately for complete sentence")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	translator.allow("hello world.")
+	select {
+	case got := <-out.ch:
+		if got != "tr:hello world." {
+			t.Fatalf("unexpected output: %q", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatalf("timed out waiting for output")
+	}
+}

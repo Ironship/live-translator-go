@@ -148,7 +148,7 @@ func withDefaults(config Config) Config {
 		config.AutomationID = "CaptionsTextBlock"
 	}
 	if config.PollInterval <= 0 {
-		config.PollInterval = 350 * time.Millisecond
+		config.PollInterval = 200 * time.Millisecond
 	}
 	return config
 }

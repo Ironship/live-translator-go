@@ -5,6 +5,7 @@ package pipeline
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"time"
 
@@ -58,7 +59,7 @@ func NewProcessor(config Config, translator Translator, output Output) *Processo
 		config.MaxRetriesPerSnapshot = 2
 	}
 	if config.IdleFlushDelay <= 0 {
-		config.IdleFlushDelay = 1500 * time.Millisecond
+		config.IdleFlushDelay = 300 * time.Millisecond
 	}
 
 	return &Processor{
@@ -100,6 +101,15 @@ func (p *Processor) Submit(parent context.Context, input string) {
 
 	if wasEmpty {
 		p.firstQueued = time.Now()
+	}
+
+	if shouldTranslateImmediately(normalized) {
+		if p.debounceTimer != nil {
+			p.debounceTimer.Stop()
+			p.debounceTimer = nil
+		}
+		p.startNextLocked()
+		return
 	}
 
 	// Debounce: wait for text to stabilize before translating.
@@ -219,7 +229,11 @@ func (p *Processor) finishSnapshot(source string, value string, canceled bool, f
 	// If there's new text queued, debounce before starting the next
 	// translation to let more words accumulate from Live Captions.
 	if p.queued != "" {
-		p.resetDebounceLocked()
+		if shouldTranslateImmediately(p.queued) {
+			p.startNextLocked()
+		} else {
+			p.resetDebounceLocked()
+		}
 	}
 	p.mu.Unlock()
 
@@ -243,4 +257,22 @@ func (p *Processor) finishSnapshot(source string, value string, canceled bool, f
 			p.startNextLocked()
 		})
 	}
+}
+
+func shouldTranslateImmediately(value string) bool {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return false
+	}
+
+	runes := []rune(trimmed)
+	index := len(runes) - 1
+	for index >= 0 && isSentenceTrailingRune(runes[index]) {
+		index--
+	}
+	if index < 0 {
+		return false
+	}
+
+	return isSentenceTerminal(runes[index])
 }

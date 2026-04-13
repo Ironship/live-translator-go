@@ -53,9 +53,9 @@ func DefaultValues() Values {
 		CaptionProcessName:  "LiveCaptions",
 		CaptionWindowClass:  "LiveCaptionsDesktopWindow",
 		CaptionAutomationID: "CaptionsTextBlock",
-		CaptionPollMs:       350,
+		CaptionPollMs:       200,
 		RequestTimeoutMs:    8000,
-		RequestFrequencyMs:  1500,
+		RequestFrequencyMs:  300,
 		FontFamily:          "Segoe UI",
 		FontSize:            22,
 		OverlayHeight:       88,
@@ -155,6 +155,7 @@ func Sanitize(values Values) Values {
 
 	values.CaptionPollMs = defaultInt(values.CaptionPollMs, defaults.CaptionPollMs)
 	values.RequestTimeoutMs = defaultInt(values.RequestTimeoutMs, defaults.RequestTimeoutMs)
+	values.RequestFrequencyMs = defaultInt(values.RequestFrequencyMs, defaults.RequestFrequencyMs)
 	values.FontSize = defaultInt(values.FontSize, defaults.FontSize)
 	values.OverlayHeight = defaultInt(values.OverlayHeight, defaults.OverlayHeight)
 	values.OverlayMarginX = defaultNonNegativeInt(values.OverlayMarginX, defaults.OverlayMarginX)
