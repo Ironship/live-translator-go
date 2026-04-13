@@ -22,13 +22,17 @@ type Output interface {
 type Config struct {
 	RequestTimeout        time.Duration
 	IdleFlushDelay        time.Duration
-	ForceChunkWords       int
-	ForceChunkChars       int
-	ForceChunkAnchorWords int
 	RetryDelay            time.Duration
 	MaxRetriesPerSnapshot int
 }
 
+// Processor implements the reference-project SyncLoop approach:
+// instead of translating the full caption snapshot and diffing the results,
+// it extracts the *current sentence window* (last EOS boundary → end of text)
+// and translates only that.  Completed sentences (ending with an EOS terminal)
+// are pushed as final history lines; in-progress partial sentences overwrite the
+// single partial preview line.  This eliminates duplicates caused by LLM
+// non-determinism on already-committed text.
 type Processor struct {
 	config     Config
 	translator Translator
@@ -36,9 +40,11 @@ type Processor struct {
 
 	mu            sync.Mutex
 	parent        context.Context
-	lastInput     string
-	queued        string
-	active        string
+	lastCaption   string // last extracted current-sentence window
+	queued        string // next caption to translate
+	queuedFinal   bool   // whether queued caption is a complete sentence
+	active        string // caption currently being translated
+	activeFinal   bool   // whether active caption is a complete sentence
 	translating   bool
 	cancel        context.CancelFunc
 	retryPending  bool
@@ -74,26 +80,39 @@ func (p *Processor) Submit(parent context.Context, input string) {
 		return
 	}
 
+	// Extract the current sentence window: last EOS boundary → end of text.
+	currentCaption := extractCurrentCaption(normalized)
+	if currentCaption == "" {
+		return
+	}
+
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	p.parent = parent
-	if normalized == p.lastInput {
+	if currentCaption == p.lastCaption {
+		// Nothing new to translate.
 		return
 	}
 
-	p.lastInput = normalized
+	p.lastCaption = currentCaption
 	p.retryCount = 0
 	p.retryPending = false
 
+	isFinal := isCompleteCaption(currentCaption)
 	wasEmpty := p.queued == ""
-	p.queued = normalized
+	p.queued = currentCaption
+	p.queuedFinal = isFinal
 
-	// If a translation is already in progress, just queue the text.
-	// When it finishes, startNextLocked() will pick up the latest.
 	if p.translating {
 		if wasEmpty {
 			p.firstQueued = time.Now()
+		}
+		// If a complete sentence just arrived and we are only translating a
+		// partial, cancel the in-flight partial so we can start the final
+		// sentence sooner.
+		if isFinal && !p.activeFinal && p.cancel != nil {
+			p.cancel()
 		}
 		return
 	}
@@ -102,10 +121,17 @@ func (p *Processor) Submit(parent context.Context, input string) {
 		p.firstQueued = time.Now()
 	}
 
-	// Debounce: wait for text to stabilize before translating.
-	// Live Captions sends a new snapshot every ~0.5s as words are added;
-	// this prevents flooding the LLM with near-identical requests.
-	p.resetDebounceLocked()
+	if isFinal {
+		// Complete sentence: start immediately without debounce.
+		if p.debounceTimer != nil {
+			p.debounceTimer.Stop()
+			p.debounceTimer = nil
+		}
+		p.startNextLocked()
+	} else {
+		// Partial sentence: debounce to let more words accumulate.
+		p.resetDebounceLocked()
+	}
 }
 
 func (p *Processor) Close() {
@@ -122,8 +148,10 @@ func (p *Processor) Close() {
 		p.cancel = nil
 	}
 
+	p.parent = nil
 	p.queued = ""
 	p.active = ""
+	p.lastCaption = ""
 	p.translating = false
 }
 
@@ -132,7 +160,6 @@ func (p *Processor) Close() {
 func (p *Processor) resetDebounceLocked() {
 	if p.debounceTimer != nil {
 		// Prevent infinite starvation if captions are updated continuously.
-		// If we've been queued for more than 2.5x the flush delay without translating, let the existing timer run.
 		maxWait := p.config.IdleFlushDelay*2 + (p.config.IdleFlushDelay / 2)
 		if time.Since(p.firstQueued) >= maxWait {
 			return
@@ -153,28 +180,30 @@ func (p *Processor) startNextLocked() {
 	}
 
 	source := p.queued
+	isFinal := p.queuedFinal
 	p.queued = ""
+	p.queuedFinal = false
 	p.retryPending = false
 
 	ctx, cancel := context.WithTimeout(p.parent, p.config.RequestTimeout)
 	p.cancel = cancel
 	p.active = source
+	p.activeFinal = isFinal
 	p.translating = true
 
-	go p.translateSnapshot(source, ctx, cancel)
+	go p.translateCaption(source, isFinal, ctx, cancel)
 }
 
-func (p *Processor) translateSnapshot(source string, requestCtx context.Context, release context.CancelFunc) {
+func (p *Processor) translateCaption(source string, isFinal bool, requestCtx context.Context, release context.CancelFunc) {
 	defer release()
 
 	translated, err := p.translator.Translate(requestCtx, source)
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
-			p.finishSnapshot(source, "", true, false)
+			p.finishCaption(source, isFinal, "", true, false)
 			return
 		}
-
-		p.finishSnapshot(source, "", false, true)
+		p.finishCaption(source, isFinal, "", false, true)
 		return
 	}
 
@@ -183,49 +212,60 @@ func (p *Processor) translateSnapshot(source string, requestCtx context.Context,
 		translated = source
 	}
 
-	p.finishSnapshot(source, translated, false, false)
+	p.finishCaption(source, isFinal, translated, false, false)
 }
 
-func (p *Processor) finishSnapshot(source string, value string, canceled bool, failed bool) {
+func (p *Processor) finishCaption(source string, isFinal bool, value string, canceled bool, failed bool) {
 	value = textutil.NormalizeCaptionSnapshot(value)
 	shouldOutput := false
 	retrySource := ""
+	retryIsFinal := false
 	retryDelay := time.Duration(0)
 
 	p.mu.Lock()
 	if p.active == source {
 		p.active = ""
+		p.activeFinal = false
 	}
-
 	if p.cancel != nil {
 		p.cancel = nil
 	}
+
 	if !canceled && !failed && value != "" {
 		shouldOutput = true
-		if source == p.lastInput {
+		if source == p.lastCaption {
 			p.retryCount = 0
 		}
 	}
 
-	if failed && source == p.lastInput && p.retryCount < p.config.MaxRetriesPerSnapshot && !p.retryPending {
+	if failed && source == p.lastCaption && p.retryCount < p.config.MaxRetriesPerSnapshot && !p.retryPending {
 		p.retryCount++
 		p.retryPending = true
 		retrySource = source
+		retryIsFinal = isFinal
 		retryDelay = p.config.RetryDelay
 	}
 
 	p.translating = false
 
-	// If there's new text queued, debounce before starting the next
-	// translation to let more words accumulate from Live Captions.
+	// Schedule the next item.  Finals start immediately; partials are debounced.
 	if p.queued != "" {
-		p.resetDebounceLocked()
+		if p.queuedFinal {
+			p.startNextLocked()
+		} else {
+			p.resetDebounceLocked()
+		}
 	}
 	p.mu.Unlock()
 
 	if shouldOutput {
-		chunks, remainder := consumeSentenceChunks(value)
-		p.output.PushCaption(chunks, remainder)
+		if isFinal {
+			// Completed sentence: add as a permanent history line.
+			p.output.PushCaption([]string{value}, "")
+		} else {
+			// In-progress sentence: overwrite the partial preview line.
+			p.output.PushCaption(nil, value)
+		}
 	}
 
 	if retrySource != "" {
@@ -234,11 +274,12 @@ func (p *Processor) finishSnapshot(source string, value string, canceled bool, f
 			defer p.mu.Unlock()
 
 			p.retryPending = false
-			if p.parent == nil || p.translating || p.queued != "" || p.lastInput != retrySource {
+			if p.parent == nil || p.translating || p.queued != "" || p.lastCaption != retrySource {
 				return
 			}
 
 			p.queued = retrySource
+			p.queuedFinal = retryIsFinal
 			p.firstQueued = time.Now()
 			p.startNextLocked()
 		})
