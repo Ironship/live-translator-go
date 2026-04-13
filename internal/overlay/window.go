@@ -119,7 +119,7 @@ func New(config Config) (*Window, error) {
 	if err := mainWindow.SetTitle("Live Translator"); err != nil {
 		return nil, err
 	}
-	if err := mainWindow.SetMinMaxSize(walk.Size{720, 200}, walk.Size{2200, 1400}); err != nil {
+	if err := mainWindow.SetMinMaxSize(walk.Size{Width: 720, Height: 200}, walk.Size{Width: 2200, Height: 1400}); err != nil {
 		return nil, err
 	}
 
@@ -311,7 +311,7 @@ func New(config Config) (*Window, error) {
 	}
 	openCaptionsButton.SetFont(buttonFont)
 	_ = openCaptionsButton.SetText("Start")
-	if err := openCaptionsButton.SetMinMaxSize(walk.Size{86, 34}, walk.Size{16777215, 34}); err != nil {
+	if err := openCaptionsButton.SetMinMaxSize(walk.Size{Width: 86, Height: 34}, walk.Size{Width: 16777215, Height: 34}); err != nil {
 		return nil, err
 	}
 
@@ -321,7 +321,7 @@ func New(config Config) (*Window, error) {
 	}
 	speechPanelButton.SetFont(buttonFont)
 	_ = speechPanelButton.SetText("Speech")
-	if err := speechPanelButton.SetMinMaxSize(walk.Size{78, 34}, walk.Size{16777215, 34}); err != nil {
+	if err := speechPanelButton.SetMinMaxSize(walk.Size{Width: 78, Height: 34}, walk.Size{Width: 16777215, Height: 34}); err != nil {
 		return nil, err
 	}
 
@@ -331,7 +331,7 @@ func New(config Config) (*Window, error) {
 	}
 	settingsButton.SetFont(buttonFont)
 	_ = settingsButton.SetText("Settings")
-	if err := settingsButton.SetMinMaxSize(walk.Size{88, 34}, walk.Size{16777215, 34}); err != nil {
+	if err := settingsButton.SetMinMaxSize(walk.Size{Width: 88, Height: 34}, walk.Size{Width: 16777215, Height: 34}); err != nil {
 		return nil, err
 	}
 
@@ -341,7 +341,7 @@ func New(config Config) (*Window, error) {
 	}
 	alwaysOnTopButton.SetFont(buttonFont)
 	_ = alwaysOnTopButton.SetText("On Top: On")
-	if err := alwaysOnTopButton.SetMinMaxSize(walk.Size{102, 34}, walk.Size{16777215, 34}); err != nil {
+	if err := alwaysOnTopButton.SetMinMaxSize(walk.Size{Width: 102, Height: 34}, walk.Size{Width: 16777215, Height: 34}); err != nil {
 		return nil, err
 	}
 
@@ -361,7 +361,7 @@ func New(config Config) (*Window, error) {
 	}
 	clearButton.SetFont(buttonFont)
 	_ = clearButton.SetText("Clear")
-	if err := clearButton.SetMinMaxSize(walk.Size{68, 34}, walk.Size{16777215, 34}); err != nil {
+	if err := clearButton.SetMinMaxSize(walk.Size{Width: 68, Height: 34}, walk.Size{Width: 16777215, Height: 34}); err != nil {
 		return nil, err
 	}
 
@@ -371,7 +371,7 @@ func New(config Config) (*Window, error) {
 	}
 	focusButton.SetFont(buttonFont)
 	_ = focusButton.SetText("Focus")
-	if err := focusButton.SetMinMaxSize(walk.Size{72, 34}, walk.Size{16777215, 34}); err != nil {
+	if err := focusButton.SetMinMaxSize(walk.Size{Width: 72, Height: 34}, walk.Size{Width: 16777215, Height: 34}); err != nil {
 		return nil, err
 	}
 
@@ -381,7 +381,7 @@ func New(config Config) (*Window, error) {
 	}
 	exitButton.SetFont(buttonFont)
 	_ = exitButton.SetText("Exit")
-	if err := exitButton.SetMinMaxSize(walk.Size{68, 34}, walk.Size{16777215, 34}); err != nil {
+	if err := exitButton.SetMinMaxSize(walk.Size{Width: 68, Height: 34}, walk.Size{Width: 16777215, Height: 34}); err != nil {
 		return nil, err
 	}
 	ui.ApplyNativeDarkTheme(
@@ -492,7 +492,7 @@ func New(config Config) (*Window, error) {
 	if err := setGradientCompositeColor(previewStage, ui.PreviewStageBackground); err != nil {
 		return nil, err
 	}
-	if err := previewStage.SetMinMaxSize(walk.Size{0, 140}, walk.Size{16777215, 16777215}); err != nil {
+	if err := previewStage.SetMinMaxSize(walk.Size{Width: 0, Height: 140}, walk.Size{Width: 16777215, Height: 16777215}); err != nil {
 		return nil, err
 	}
 	if err := previewLayout.SetStretchFactor(previewStage, 1); err != nil {
@@ -526,7 +526,7 @@ func New(config Config) (*Window, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := previewSurface.Widget().SetMinMaxSize(walk.Size{0, 96}, walk.Size{16777215, 16777215}); err != nil {
+	if err := previewSurface.Widget().SetMinMaxSize(walk.Size{Width: 0, Height: 96}, walk.Size{Width: 16777215, Height: 16777215}); err != nil {
 		return nil, err
 	}
 	if err := previewStageLayout.SetStretchFactor(previewSurface.Widget(), 1); err != nil {

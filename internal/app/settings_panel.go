@@ -150,7 +150,7 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	if err != nil {
 		return nil, err
 	}
-	if err := translationTabButton.SetMinMaxSize(walk.Size{132, 34}, walk.Size{16777215, 34}); err != nil {
+	if err := translationTabButton.SetMinMaxSize(walk.Size{Width: 132, Height: 34}, walk.Size{Width: 16777215, Height: 34}); err != nil {
 		return nil, err
 	}
 
@@ -158,7 +158,7 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	if err != nil {
 		return nil, err
 	}
-	if err := captionsTabButton.SetMinMaxSize(walk.Size{132, 34}, walk.Size{16777215, 34}); err != nil {
+	if err := captionsTabButton.SetMinMaxSize(walk.Size{Width: 132, Height: 34}, walk.Size{Width: 16777215, Height: 34}); err != nil {
 		return nil, err
 	}
 
@@ -166,7 +166,7 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	if err != nil {
 		return nil, err
 	}
-	if err := appearanceTabButton.SetMinMaxSize(walk.Size{132, 34}, walk.Size{16777215, 34}); err != nil {
+	if err := appearanceTabButton.SetMinMaxSize(walk.Size{Width: 132, Height: 34}, walk.Size{Width: 16777215, Height: 34}); err != nil {
 		return nil, err
 	}
 
@@ -387,7 +387,7 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 		return nil, err
 	}
 	_ = applyButton.SetText("Apply")
-	if err := applyButton.SetMinMaxSize(walk.Size{124, 40}, walk.Size{164, 40}); err != nil {
+	if err := applyButton.SetMinMaxSize(walk.Size{Width: 124, Height: 40}, walk.Size{Width: 164, Height: 40}); err != nil {
 		return nil, err
 	}
 
@@ -396,7 +396,7 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 		return nil, err
 	}
 	_ = testButton.SetText("Test Connection")
-	if err := testButton.SetMinMaxSize(walk.Size{156, 40}, walk.Size{196, 40}); err != nil {
+	if err := testButton.SetMinMaxSize(walk.Size{Width: 156, Height: 40}, walk.Size{Width: 196, Height: 40}); err != nil {
 		return nil, err
 	}
 
@@ -405,7 +405,7 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 		return nil, err
 	}
 	_ = cancelButton.SetText("Close")
-	if err := cancelButton.SetMinMaxSize(walk.Size{124, 40}, walk.Size{164, 40}); err != nil {
+	if err := cancelButton.SetMinMaxSize(walk.Size{Width: 124, Height: 40}, walk.Size{Width: 164, Height: 40}); err != nil {
 		return nil, err
 	}
 
@@ -729,7 +729,7 @@ func addSettingsLineEditRow(parent walk.Container, labelText, value string, inpu
 	}
 	label.SetTextColor(ui.TextPrimary)
 	_ = label.SetText(labelText)
-	if err := label.SetMinMaxSize(walk.Size{labelWidth, 0}, walk.Size{labelWidth, maxFieldHeight}); err != nil {
+	if err := label.SetMinMaxSize(walk.Size{Width: labelWidth, Height: 0}, walk.Size{Width: labelWidth, Height: maxFieldHeight}); err != nil {
 		return nil, err
 	}
 	if err := label.SetAlignment(walk.AlignHNearVCenter); err != nil {
@@ -779,7 +779,7 @@ func addSettingsComboBoxRow(parent walk.Container, labelText string, options []s
 	}
 	label.SetTextColor(ui.TextPrimary)
 	_ = label.SetText(labelText)
-	if err := label.SetMinMaxSize(walk.Size{labelWidth, 0}, walk.Size{labelWidth, maxFieldHeight}); err != nil {
+	if err := label.SetMinMaxSize(walk.Size{Width: labelWidth, Height: 0}, walk.Size{Width: labelWidth, Height: maxFieldHeight}); err != nil {
 		return nil, err
 	}
 	if err := label.SetAlignment(walk.AlignHNearVCenter); err != nil {
@@ -853,7 +853,7 @@ func addSettingsProviderRow(parent walk.Container, options []string, value strin
 	}
 	label.SetTextColor(ui.TextPrimary)
 	_ = label.SetText("Provider")
-	if err := label.SetMinMaxSize(walk.Size{labelWidth, 0}, walk.Size{labelWidth, maxFieldHeight}); err != nil {
+	if err := label.SetMinMaxSize(walk.Size{Width: labelWidth, Height: 0}, walk.Size{Width: labelWidth, Height: maxFieldHeight}); err != nil {
 		return nil, err
 	}
 	if err := label.SetAlignment(walk.AlignHNearVCenter); err != nil {
@@ -888,7 +888,7 @@ func addSettingsProviderRow(parent walk.Container, options []string, value strin
 			return nil, err
 		}
 		_ = button.SetText(option)
-		if err := button.SetMinMaxSize(walk.Size{124, 34}, walk.Size{16777215, 34}); err != nil {
+		if err := button.SetMinMaxSize(walk.Size{Width: 124, Height: 34}, walk.Size{Width: 16777215, Height: 34}); err != nil {
 			return nil, err
 		}
 		buttons = append(buttons, button)
