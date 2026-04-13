@@ -55,6 +55,7 @@ type Window struct {
 	speechPanel         *walk.PushButton
 	settings            *walk.PushButton
 	alwaysOnTop         *walk.PushButton
+	wordByWord          *walk.PushButton
 	clearButton         *walk.PushButton
 	focus               *walk.PushButton
 	exit                *walk.PushButton
@@ -68,7 +69,6 @@ type Window struct {
 	focusStageB         *walk.SolidColorBrush
 	lastText            string
 	captionHistory      []previewLine
-	lastCaptionSnapshot []string
 	currentConfig       Config
 	collapsedBounds     walk.Rectangle
 	expandedBounds      walk.Rectangle
@@ -77,6 +77,7 @@ type Window struct {
 	settingsVisible     bool
 	focusMode           bool
 	alwaysOnTopEnabled  bool
+	wordByWordEnabled   bool
 	increaseFontSize    func()
 	decreaseFontSize    func()
 }
@@ -118,7 +119,7 @@ func New(config Config) (*Window, error) {
 	if err := mainWindow.SetTitle("Live Translator"); err != nil {
 		return nil, err
 	}
-	if err := mainWindow.SetMinMaxSize(walk.Size{720, 200}, walk.Size{2200, 1400}); err != nil {
+	if err := mainWindow.SetMinMaxSize(walk.Size{Width: 720, Height: 200}, walk.Size{Width: 2200, Height: 1400}); err != nil {
 		return nil, err
 	}
 
@@ -310,7 +311,7 @@ func New(config Config) (*Window, error) {
 	}
 	openCaptionsButton.SetFont(buttonFont)
 	_ = openCaptionsButton.SetText("Start")
-	if err := openCaptionsButton.SetMinMaxSize(walk.Size{86, 34}, walk.Size{16777215, 34}); err != nil {
+	if err := openCaptionsButton.SetMinMaxSize(walk.Size{Width: 86, Height: 34}, walk.Size{Width: 16777215, Height: 34}); err != nil {
 		return nil, err
 	}
 
@@ -320,7 +321,7 @@ func New(config Config) (*Window, error) {
 	}
 	speechPanelButton.SetFont(buttonFont)
 	_ = speechPanelButton.SetText("Speech")
-	if err := speechPanelButton.SetMinMaxSize(walk.Size{78, 34}, walk.Size{16777215, 34}); err != nil {
+	if err := speechPanelButton.SetMinMaxSize(walk.Size{Width: 78, Height: 34}, walk.Size{Width: 16777215, Height: 34}); err != nil {
 		return nil, err
 	}
 
@@ -330,7 +331,7 @@ func New(config Config) (*Window, error) {
 	}
 	settingsButton.SetFont(buttonFont)
 	_ = settingsButton.SetText("Settings")
-	if err := settingsButton.SetMinMaxSize(walk.Size{88, 34}, walk.Size{16777215, 34}); err != nil {
+	if err := settingsButton.SetMinMaxSize(walk.Size{Width: 88, Height: 34}, walk.Size{Width: 16777215, Height: 34}); err != nil {
 		return nil, err
 	}
 
@@ -340,7 +341,17 @@ func New(config Config) (*Window, error) {
 	}
 	alwaysOnTopButton.SetFont(buttonFont)
 	_ = alwaysOnTopButton.SetText("On Top: On")
-	if err := alwaysOnTopButton.SetMinMaxSize(walk.Size{102, 34}, walk.Size{16777215, 34}); err != nil {
+	if err := alwaysOnTopButton.SetMinMaxSize(walk.Size{Width: 102, Height: 34}, walk.Size{Width: 16777215, Height: 34}); err != nil {
+		return nil, err
+	}
+
+	wordByWordButton, err := walk.NewPushButton(buttonRow)
+	if err != nil {
+		return nil, err
+	}
+	wordByWordButton.SetFont(buttonFont)
+	_ = wordByWordButton.SetText("W×W: Off")
+	if err := wordByWordButton.SetMinMaxSize(walk.Size{86, 34}, walk.Size{16777215, 34}); err != nil {
 		return nil, err
 	}
 
@@ -350,7 +361,7 @@ func New(config Config) (*Window, error) {
 	}
 	clearButton.SetFont(buttonFont)
 	_ = clearButton.SetText("Clear")
-	if err := clearButton.SetMinMaxSize(walk.Size{68, 34}, walk.Size{16777215, 34}); err != nil {
+	if err := clearButton.SetMinMaxSize(walk.Size{Width: 68, Height: 34}, walk.Size{Width: 16777215, Height: 34}); err != nil {
 		return nil, err
 	}
 
@@ -360,7 +371,7 @@ func New(config Config) (*Window, error) {
 	}
 	focusButton.SetFont(buttonFont)
 	_ = focusButton.SetText("Focus")
-	if err := focusButton.SetMinMaxSize(walk.Size{72, 34}, walk.Size{16777215, 34}); err != nil {
+	if err := focusButton.SetMinMaxSize(walk.Size{Width: 72, Height: 34}, walk.Size{Width: 16777215, Height: 34}); err != nil {
 		return nil, err
 	}
 
@@ -370,7 +381,7 @@ func New(config Config) (*Window, error) {
 	}
 	exitButton.SetFont(buttonFont)
 	_ = exitButton.SetText("Exit")
-	if err := exitButton.SetMinMaxSize(walk.Size{68, 34}, walk.Size{16777215, 34}); err != nil {
+	if err := exitButton.SetMinMaxSize(walk.Size{Width: 68, Height: 34}, walk.Size{Width: 16777215, Height: 34}); err != nil {
 		return nil, err
 	}
 	ui.ApplyNativeDarkTheme(
@@ -378,6 +389,7 @@ func New(config Config) (*Window, error) {
 		speechPanelButton,
 		settingsButton,
 		alwaysOnTopButton,
+		wordByWordButton,
 		clearButton,
 		focusButton,
 		exitButton,
@@ -480,7 +492,7 @@ func New(config Config) (*Window, error) {
 	if err := setGradientCompositeColor(previewStage, ui.PreviewStageBackground); err != nil {
 		return nil, err
 	}
-	if err := previewStage.SetMinMaxSize(walk.Size{0, 140}, walk.Size{16777215, 16777215}); err != nil {
+	if err := previewStage.SetMinMaxSize(walk.Size{Width: 0, Height: 140}, walk.Size{Width: 16777215, Height: 16777215}); err != nil {
 		return nil, err
 	}
 	if err := previewLayout.SetStretchFactor(previewStage, 1); err != nil {
@@ -514,7 +526,7 @@ func New(config Config) (*Window, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := previewSurface.Widget().SetMinMaxSize(walk.Size{0, 96}, walk.Size{16777215, 16777215}); err != nil {
+	if err := previewSurface.Widget().SetMinMaxSize(walk.Size{Width: 0, Height: 96}, walk.Size{Width: 16777215, Height: 16777215}); err != nil {
 		return nil, err
 	}
 	if err := previewStageLayout.SetStretchFactor(previewSurface.Widget(), 1); err != nil {
@@ -583,6 +595,7 @@ func New(config Config) (*Window, error) {
 		speechPanel:     speechPanelButton,
 		settings:        settingsButton,
 		alwaysOnTop:     alwaysOnTopButton,
+		wordByWord:      wordByWordButton,
 		clearButton:     clearButton,
 		focus:           focusButton,
 		exit:            exitButton,
@@ -699,6 +712,24 @@ func (w *Window) OnOpenSpeechRecognition(handler func()) {
 
 func (w *Window) OnToggleAlwaysOnTop(handler func()) {
 	w.alwaysOnTop.Clicked().Attach(handler)
+}
+
+func (w *Window) OnToggleWordByWord(handler func()) {
+	w.wordByWord.Clicked().Attach(handler)
+}
+
+func (w *Window) SetWordByWord(enabled bool) {
+	if w.mainWindow.IsDisposed() {
+		return
+	}
+
+	w.mainWindow.Synchronize(func() {
+		if w.mainWindow.IsDisposed() {
+			return
+		}
+
+		w.updateWordByWordButton(enabled)
+	})
 }
 
 func (w *Window) OnIncreaseFontSize(handler func()) {
@@ -863,7 +894,6 @@ func (w *Window) SetText(value string) {
 			return
 		}
 		w.captionHistory = nil
-		w.lastCaptionSnapshot = nil
 		w.applyPreviewLines(appendPreviewTextsWithPersistentColors(nil, splitCaptionLines(text)...), false)
 	})
 }
@@ -877,7 +907,6 @@ func (w *Window) Clear() {
 			return
 		}
 		w.captionHistory = nil
-		w.lastCaptionSnapshot = nil
 		w.applyPreviewLines(nil, false)
 	})
 }
@@ -1035,6 +1064,17 @@ func (w *Window) updateActionButtons() {
 	} else {
 		_ = w.alwaysOnTop.SetText("On Top: Off")
 	}
+
+	w.updateWordByWordButton(w.wordByWordEnabled)
+}
+
+func (w *Window) updateWordByWordButton(enabled bool) {
+	w.wordByWordEnabled = enabled
+	if enabled {
+		_ = w.wordByWord.SetText("W×W: On")
+	} else {
+		_ = w.wordByWord.SetText("W×W: Off")
+	}
 }
 
 func withDefaults(config Config) Config {
@@ -1154,145 +1194,24 @@ func (w *Window) applyPreviewLines(lines []previewLine, animate bool) {
 }
 
 func (w *Window) pushCaptionChunks(finalChunks []string, partialChunk string) {
-	var combined []string
-	combined = append(combined, finalChunks...)
-	if partialChunk != "" {
-		combined = append(combined, partialChunk)
+	// Remove the existing partial line — it will be replaced by new content.
+	if len(w.captionHistory) > 0 && w.captionHistory[len(w.captionHistory)-1].Partial {
+		w.captionHistory = w.captionHistory[:len(w.captionHistory)-1]
 	}
 
-	incoming := compactCaptionLines(combined)
-	if len(incoming) == 0 {
-		return
-	}
+	// Append final chunks (processor guarantees these are genuinely new).
+	w.captionHistory = appendPreviewTextsWithPersistentColors(w.captionHistory, finalChunks...)
 
-	if len(w.lastCaptionSnapshot) == 0 {
-		w.captionHistory = nil
-	}
-
-	if replacement, ok := newestCaptionReplacement(w.lastCaptionSnapshot, incoming); ok {
-		w.captionHistory = replaceLastPreviewCaption(w.captionHistory, replacement)
-	}
-
-	// Before appending, remove any existing history entries that are
-	// superseded by the incoming lines (e.g. a partial chunk "w jego"
-	// that is now part of a full sentence "w jego To jest trudna rzecz").
-	w.captionHistory = removeSupersededCaptions(w.captionHistory, incoming)
-
-	appended := appendedCaptionLines(w.lastCaptionSnapshot, incoming)
-	if len(appended) > 0 {
-		w.captionHistory = appendPreviewTextsWithPersistentColors(w.captionHistory, appended...)
-	}
-
+	// Trim history to the visible limit.
 	w.captionHistory = trimPreviewHistory(w.captionHistory, w.previewHistoryLimit())
-	w.lastCaptionSnapshot = append([]string(nil), incoming...)
 
-	for i := range w.captionHistory {
-		w.captionHistory[i].Partial = false
-	}
-	if partialChunk != "" && len(w.captionHistory) > 0 {
-		w.captionHistory[len(w.captionHistory)-1].Partial = true
-	}
-}
-
-func appendedCaptionLines(previous []string, incoming []string) []string {
-	if len(incoming) == 0 {
-		return nil
-	}
-	if len(previous) == 0 {
-		return append([]string(nil), incoming...)
-	}
-
-	overlap := findCaptionOverlap(previous, incoming)
-	if overlap > 0 {
-		return append([]string(nil), incoming[overlap:]...)
-	}
-
-	if _, ok := newestCaptionReplacement(previous, incoming); ok {
-		return nil
-	}
-
-	appended := make([]string, 0, len(incoming))
-	for _, line := range incoming {
-		if !captionSliceContainsComparable(previous, line) {
-			appended = append(appended, line)
+	// Add the partial chunk (if any) as the last entry, marked partial.
+	if partialChunk != "" {
+		w.captionHistory = appendPreviewTextsWithPersistentColors(w.captionHistory, partialChunk)
+		if len(w.captionHistory) > 0 {
+			w.captionHistory[len(w.captionHistory)-1].Partial = true
 		}
 	}
-
-	if len(appended) == 0 {
-		return nil
-	}
-
-	return appended
-}
-
-func newestCaptionReplacement(previous []string, incoming []string) (string, bool) {
-	if len(previous) == 0 || len(incoming) == 0 {
-		return "", false
-	}
-
-	previousLast := previous[len(previous)-1]
-	incomingLast := incoming[len(incoming)-1]
-	if !shouldReplaceCaption(previousLast, incomingLast) && !sameCaptionIdentity(previousLast, incomingLast) {
-		return "", false
-	}
-	if captionComparisonKey(previousLast) == captionComparisonKey(incomingLast) {
-		return "", false
-	}
-
-	return incomingLast, true
-}
-
-func captionSliceContainsComparable(lines []string, target string) bool {
-	for _, line := range lines {
-		if shouldReplaceCaption(line, target) || sameCaptionIdentity(line, target) {
-			return true
-		}
-	}
-
-	return false
-}
-
-func replaceLastPreviewCaption(lines []previewLine, value string) []previewLine {
-	if len(lines) == 0 {
-		return nil
-	}
-
-	updated := append([]previewLine(nil), lines...)
-	updated[len(updated)-1].Text = strings.TrimSpace(value)
-	return compactPreviewLines(updated)
-}
-
-// removeSupersededCaptions removes any history entries whose key is a strict
-// prefix of an incoming line's key. This handles partial chunks appearing
-// before the full sentence arrives (e.g. "w jego" → "w jego To jest trudna rzecz").
-// Only strict prefix matching is used — fuzzy matching is too aggressive and
-// causes false positive removal of unrelated sentences.
-func removeSupersededCaptions(history []previewLine, incoming []string) []previewLine {
-	if len(history) == 0 || len(incoming) == 0 {
-		return history
-	}
-
-	kept := make([]previewLine, 0, len(history))
-	for _, line := range history {
-		lineKey := captionComparisonKey(line.Text)
-		superseded := false
-		for _, inc := range incoming {
-			incKey := captionComparisonKey(inc)
-			if lineKey == "" || incKey == "" || lineKey == incKey {
-				continue
-			}
-			// Only remove if this history entry is a strict prefix of an incoming line.
-			if strings.HasPrefix(incKey, lineKey) {
-				superseded = true
-				break
-			}
-		}
-		if !superseded {
-			kept = append(kept, line)
-		}
-	}
-
-	return kept
 }
 
 func (w *Window) previewHistoryLimit() int {
