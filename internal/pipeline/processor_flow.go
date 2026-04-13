@@ -67,7 +67,7 @@ func (p *Processor) translateSnapshot(source string, requestCtx context.Context,
 }
 
 func (p *Processor) finishSnapshot(source string, value string, canceled bool, failed bool) {
-	shouldOutput, retrySource, retryDelay, outputValue := p.finishSnapshotState(source, value, canceled, failed)
+	shouldOutput, retrySource, retryDelay, outputValue := p.computeSnapshotOutcome(source, value, canceled, failed)
 
 	if shouldOutput {
 		chunks, remainder := consumeSentenceChunks(outputValue)
@@ -79,8 +79,8 @@ func (p *Processor) finishSnapshot(source string, value string, canceled bool, f
 	}
 }
 
-func (p *Processor) finishSnapshotState(source string, value string, canceled bool, failed bool) (shouldOutput bool, retrySource string, retryDelay time.Duration, outputValue string) {
-	outputValue = value
+func (p *Processor) computeSnapshotOutcome(source string, value string, canceled bool, failed bool) (shouldOutput bool, retrySource string, retryDelay time.Duration, outputValue string) {
+	outputValue = textutil.NormalizeCaptionSnapshot(value)
 
 	p.mu.Lock()
 	if p.active == source {
