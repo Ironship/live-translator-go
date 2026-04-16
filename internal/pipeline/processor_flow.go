@@ -119,8 +119,7 @@ func (p *Processor) computeSnapshotOutcome(source string, value string, canceled
 			p.committedSrc = append(p.committedSrc, sourceChunks...)
 		}
 
-		chunks = chunksDelta(p.committed, outputChunks)
-		p.committed = append([]string(nil), outputChunks...)
+		chunks = outputChunks
 		remainder = outputRemainder
 	}
 
