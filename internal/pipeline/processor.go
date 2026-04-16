@@ -72,15 +72,19 @@ func NewProcessor(config Config, translator Translator, output Output) *Processo
 
 func (p *Processor) Submit(parent context.Context, input string) {
 	normalized := textutil.NormalizeCaptionSnapshot(input)
-	if len(p.committedSrc) > 0 {
-		normalized = pendingFromCurrentAfterAnchor(strings.Join(p.committedSrc, " "), normalized)
-	}
 	if normalized == "" {
 		return
 	}
 
 	p.mu.Lock()
 	defer p.mu.Unlock()
+
+	if len(p.committedSrc) > 0 {
+		normalized = pendingFromCurrentAfterAnchor(strings.Join(p.committedSrc, " "), normalized)
+	}
+	if normalized == "" {
+		return
+	}
 
 	p.parent = parent
 	if normalized == p.lastInput {
