@@ -39,7 +39,6 @@ type Processor struct {
 	lastInput     string
 	queued        string
 	active        string
-	committed     []string
 	committedSrc  []string
 	translating   bool
 	cancel        context.CancelFunc
@@ -134,7 +133,6 @@ func (p *Processor) Close() {
 
 	p.queued = ""
 	p.active = ""
-	p.committed = nil
 	p.committedSrc = nil
 	p.translating = false
 }

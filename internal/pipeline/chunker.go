@@ -10,53 +10,6 @@ import (
 )
 
 const minReliableChunkOverlap = 2
-const captionShortThreshold = 10
-
-// extractCurrentCaption returns the last sentence window from a normalized
-// multi-line caption snapshot.
-func extractCurrentCaption(fullText string) string {
-	text := strings.TrimSpace(strings.Join(strings.Fields(strings.ReplaceAll(fullText, "\n", " ")), " "))
-	if text == "" {
-		return ""
-	}
-
-	runes := []rune(text)
-	effectiveEnd := len(runes)
-	for effectiveEnd > 0 && isSentenceTrailingRune(runes[effectiveEnd-1]) {
-		effectiveEnd--
-	}
-
-	searchUpTo := len(runes)
-	if effectiveEnd > 0 && isSentenceTerminal(runes[effectiveEnd-1]) {
-		searchUpTo = effectiveEnd - 1
-	}
-
-	lastEOS := -1
-	for i := searchUpTo - 1; i >= 0; i-- {
-		if isSentenceTerminal(runes[i]) {
-			lastEOS = i
-			break
-		}
-	}
-
-	latest := strings.TrimSpace(string(runes[lastEOS+1:]))
-	if len(latest) < captionShortThreshold && lastEOS > 0 {
-		prevEOS := -1
-		for i := lastEOS - 1; i >= 0; i-- {
-			if isSentenceTerminal(runes[i]) {
-				prevEOS = i
-				break
-			}
-		}
-
-		extended := strings.TrimSpace(string(runes[prevEOS+1:]))
-		if extended != "" {
-			latest = extended
-		}
-	}
-
-	return latest
-}
 
 func isCompleteCaption(text string) bool {
 	runes := []rune(strings.TrimSpace(text))
@@ -71,29 +24,6 @@ func isCompleteCaption(text string) bool {
 		return true
 	}
 	return false
-}
-
-func mergePendingSource(pending string, current string) (string, bool) {
-	pending = textutil.NormalizeCaption(pending)
-	current = textutil.NormalizeCaption(current)
-	if current == "" {
-		return "", false
-	}
-	if pending == "" {
-		return current, false
-	}
-	if current == pending || strings.HasPrefix(current, pending) {
-		return current, false
-	}
-
-	pendingTokens := strings.Fields(pending)
-	currentTokens := strings.Fields(current)
-	_, currentStart, overlap := findLongestSharedRun(pendingTokens, currentTokens)
-	if overlap < minOverlap(len(pendingTokens), len(currentTokens)) {
-		return current, true
-	}
-
-	return strings.Join(currentTokens[currentStart:], " "), false
 }
 
 func pendingFromCurrentAfterAnchor(anchor string, current string) string {
@@ -166,65 +96,6 @@ func containsTerminatorChar(value string) bool {
 	return strings.ContainsAny(value, ".!?…")
 }
 
-func splitForcedChunk(value string, maxWords int, maxChars int, anchorWords int) (string, string) {
-	value = textutil.NormalizeCaption(value)
-	if value == "" {
-		return "", ""
-	}
-
-	words := strings.Fields(value)
-	if len(words) == 0 {
-		return "", ""
-	}
-	if len(words) < maxWords && len(value) < maxChars {
-		return "", value
-	}
-	if anchorWords < 1 {
-		anchorWords = 1
-	}
-
-	minChunkWords := anchorWords + 2
-	if len(words) <= minChunkWords {
-		return "", value
-	}
-
-	splitAt := len(words) - anchorWords
-	if splitAt < 2 {
-		return "", value
-	}
-
-	chunk := strings.Join(words[:splitAt], " ")
-	remainder := strings.Join(words[splitAt:], " ")
-	return textutil.NormalizeCaption(chunk), textutil.NormalizeCaption(remainder)
-}
-
-func findLongestSharedRun(left []string, right []string) (int, int, int) {
-	bestLeftStart := -1
-	bestRightStart := -1
-	bestLen := 0
-
-	for leftStart := 0; leftStart < len(left); leftStart++ {
-		if len(left)-leftStart < bestLen {
-			break
-		}
-
-		for rightStart := 0; rightStart < len(right); rightStart++ {
-			matchLen := 0
-			for leftStart+matchLen < len(left) && rightStart+matchLen < len(right) && left[leftStart+matchLen] == right[rightStart+matchLen] {
-				matchLen++
-			}
-
-			if matchLen > bestLen || (matchLen == bestLen && matchLen > 0 && rightStart > bestRightStart) {
-				bestLeftStart = leftStart
-				bestRightStart = rightStart
-				bestLen = matchLen
-			}
-		}
-	}
-
-	return bestLeftStart, bestRightStart, bestLen
-}
-
 func findAnchorSuffix(anchor []string, current []string, preferEarliest bool) (int, int) {
 	bestStart := -1
 	bestLen := 0
@@ -247,43 +118,6 @@ func findAnchorSuffix(anchor []string, current []string, preferEarliest bool) (i
 	}
 
 	return bestStart, bestLen
-}
-
-func chunksDelta(committed []string, incoming []string) []string {
-	if len(incoming) == 0 {
-		return nil
-	}
-	if len(committed) == 0 {
-		return append([]string(nil), incoming...)
-	}
-
-	maxOverlap := len(committed)
-	if len(incoming) < maxOverlap {
-		maxOverlap = len(incoming)
-	}
-
-	for overlap := maxOverlap; overlap > 0; overlap-- {
-		if committedSuffixMatchesIncomingPrefix(committed, incoming, overlap) {
-			if overlap >= len(incoming) {
-				return nil
-			}
-			return append([]string(nil), incoming[overlap:]...)
-		}
-	}
-
-	return append([]string(nil), incoming...)
-}
-
-func committedSuffixMatchesIncomingPrefix(committed []string, incoming []string, n int) bool {
-	if n > len(committed) || n > len(incoming) {
-		return false
-	}
-	for i := 0; i < n; i++ {
-		if committed[len(committed)-n+i] != incoming[i] {
-			return false
-		}
-	}
-	return true
 }
 
 func tokenSlicesEqual(left []string, right []string) bool {
