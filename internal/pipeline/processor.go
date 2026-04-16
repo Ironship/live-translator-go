@@ -80,9 +80,9 @@ func (p *Processor) Submit(parent context.Context, input string) {
 
 	if len(p.committedSrc) > 0 {
 		normalized = pendingFromCurrentAfterAnchor(strings.Join(p.committedSrc, " "), normalized)
-		if normalized == "" {
-			return
-		}
+	}
+	if normalized == "" {
+		return
 	}
 
 	p.parent = parent
