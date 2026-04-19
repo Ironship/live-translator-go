@@ -110,6 +110,18 @@ func UsesTranslationContext(provider string) bool {
 	}
 }
 
+// UsesGlossary reports whether the provider honours the user-provided pinned
+// term glossary. Currently only chat-completions backends apply it directly in
+// the system prompt; DeepL has a separate glossary API that is not yet wired up.
+func UsesGlossary(provider string) bool {
+	switch NormalizeProvider(provider) {
+	case ProviderOllama, ProviderLMStudio:
+		return true
+	default:
+		return false
+	}
+}
+
 func IsConfigured(provider string, apiKey string, model string) bool {
 	provider = NormalizeProvider(provider)
 	if RequiresAPIKey(provider) && strings.TrimSpace(apiKey) == "" {

@@ -48,6 +48,7 @@ func ConfigFromSettings(values settings.Values) Config {
 			Context:        values.TranslationContext,
 			SourceLanguage: values.SourceLanguage,
 			TargetLanguage: values.TargetLanguage,
+			Glossary:       values.Glossary,
 		},
 		Overlay: overlay.Config{
 			InitialText:         "Waiting for Live Captions...",

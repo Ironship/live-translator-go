@@ -22,6 +22,7 @@ type Values struct {
 	BaseURL             string `json:"baseUrl"`
 	Model               string `json:"model"`
 	TranslationContext  string `json:"translationContext"`
+	Glossary            string `json:"glossary"`
 	SourceLanguage      string `json:"sourceLanguage"`
 	TargetLanguage      string `json:"targetLanguage"`
 	CaptionProcessName  string `json:"captionProcessName"`
@@ -154,6 +155,7 @@ func Sanitize(values Values) Values {
 		values.Model = strings.TrimSpace(values.Model)
 	}
 	values.TranslationContext = strings.TrimSpace(values.TranslationContext)
+	values.Glossary = strings.TrimSpace(values.Glossary)
 	values.SourceLanguage = defaultString(values.SourceLanguage, defaults.SourceLanguage)
 	values.TargetLanguage = defaultString(values.TargetLanguage, defaults.TargetLanguage)
 	values.CaptionProcessName = defaultString(values.CaptionProcessName, defaults.CaptionProcessName)

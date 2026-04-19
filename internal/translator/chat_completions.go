@@ -21,6 +21,7 @@ type Config struct {
 	Context        string
 	SourceLanguage string
 	TargetLanguage string
+	Glossary       string // free-form, one "term|translation" pair per line
 }
 
 type ChatCompletionsClient struct {
@@ -145,13 +146,20 @@ func (c *ChatCompletionsClient) systemPrompt() string {
 		targetLanguage = "English"
 	}
 
+	base := fmt.Sprintf(
+		"You translate live captions from %s to %s. Return only the translated text. Preserve sentence order and intent. Do not add commentary or quotation marks.",
+		sourceLanguage,
+		targetLanguage,
+	)
+
+	glossary := formatGlossaryForPrompt(c.config.Glossary)
+	if glossary != "" {
+		base += " Always honour this glossary of pinned term translations (left = source, right = target): " + glossary + "."
+	}
+
 	translationContext := strings.TrimSpace(c.config.Context)
 	if translationContext == "" {
-		return fmt.Sprintf(
-			"You translate live captions from %s to %s. Return only the translated text. Preserve sentence order and intent. Do not add commentary or quotation marks.",
-			sourceLanguage,
-			targetLanguage,
-		)
+		return base
 	}
 
 	translationContext = strings.ReplaceAll(translationContext, "{source_language}", sourceLanguage)
@@ -160,10 +168,61 @@ func (c *ChatCompletionsClient) systemPrompt() string {
 	translationContext = strings.ReplaceAll(translationContext, "{target_line}", "")
 	translationContext = strings.TrimSpace(translationContext)
 
-	return fmt.Sprintf(
-		"You translate live captions from %s to %s. Return only the translated text. Preserve sentence order and intent. Do not add commentary or quotation marks. Use this additional context to resolve ambiguity: %s",
-		sourceLanguage,
-		targetLanguage,
-		translationContext,
-	)
+	return base + " Use this additional context to resolve ambiguity: " + translationContext
+}
+
+// formatGlossaryForPrompt converts the free-form glossary text (one
+// "source|target" or "source=target" or "source\ttarget" pair per line,
+// with # and // comments ignored) into a compact single-line representation
+// suitable for inclusion in a system prompt.
+func formatGlossaryForPrompt(raw string) string {
+	entries := ParseGlossary(raw)
+	if len(entries) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		parts = append(parts, fmt.Sprintf("%q -> %q", entry.Source, entry.Target))
+	}
+	return strings.Join(parts, "; ")
+}
+
+// GlossaryEntry represents one pinned translation pair.
+type GlossaryEntry struct {
+	Source string
+	Target string
+}
+
+// ParseGlossary parses a free-form glossary string. Each non-empty, non-comment
+// line must contain a source and target separated by '|', '=', or a tab.
+// Entries with an empty source or target are discarded.
+func ParseGlossary(raw string) []GlossaryEntry {
+	lines := strings.Split(raw, "\n")
+	entries := make([]GlossaryEntry, 0, len(lines))
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "//") {
+			continue
+		}
+		sep := indexOfAny(line, "|=\t")
+		if sep <= 0 || sep == len(line)-1 {
+			continue
+		}
+		source := strings.TrimSpace(line[:sep])
+		target := strings.TrimSpace(line[sep+1:])
+		if source == "" || target == "" {
+			continue
+		}
+		entries = append(entries, GlossaryEntry{Source: source, Target: target})
+	}
+	return entries
+}
+
+func indexOfAny(s, chars string) int {
+	for i, r := range s {
+		if strings.ContainsRune(chars, r) {
+			return i
+		}
+	}
+	return -1
 }

@@ -32,6 +32,10 @@ type settingsPanel struct {
 	modelRow          *settingsFieldRow
 	contextRow        *settingsFieldRow
 	contextNote       *walk.Label
+	glossaryRow       *walk.Composite
+	glossaryLabel     *walk.Label
+	glossaryEdit      *walk.TextEdit
+	glossaryNote      *walk.Label
 	sourceLangRow     *settingsFieldRow
 	targetLangBox     *walk.ComboBox
 	pollMsRow         *settingsFieldRow
@@ -272,6 +276,29 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 		return nil, err
 	}
 	panel.contextNote, err = addSettingsGroupNote(translationGroup, "Optional: used by Ollama and LM Studio as additional context in the translation prompt.", bodyFont)
+	if err != nil {
+		return nil, err
+	}
+
+	// Glossary (pinned term translations). Only applies to chat-completions backends.
+	panel.glossaryRow, panel.glossaryLabel, panel.glossaryEdit, err = addSettingsTextAreaRow(
+		translationGroup,
+		"Glossary (optional)",
+		current.Glossary,
+		inputBrush,
+		sectionBrush,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if bodyFont != nil {
+		panel.glossaryLabel.SetFont(bodyFont)
+	}
+	panel.glossaryNote, err = addSettingsGroupNote(
+		translationGroup,
+		"One \"source | translation\" pair per line. Lines starting with # are ignored. Used by Ollama / LM Studio to enforce fixed renderings of names and terms.",
+		bodyFont,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -547,6 +574,7 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 			panel.baseURLRow.edit.Text(),
 			panel.modelRow.edit.Text(),
 			panel.contextRow.edit.Text(),
+			panel.glossaryText(),
 			panel.sourceLangRow.edit.Text(),
 			panel.selectedTargetLanguage(),
 			panel.pollMsRow.edit.Text(),
@@ -610,6 +638,7 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 				Context:        values.TranslationContext,
 				SourceLanguage: values.SourceLanguage,
 				TargetLanguage: values.TargetLanguage,
+				Glossary:       values.Glossary,
 			})
 
 			panel.statusLabel.Synchronize(func() {
@@ -650,6 +679,9 @@ func (p *settingsPanel) Load(values settings.Values) {
 	_ = p.baseURLRow.edit.SetText(values.BaseURL)
 	_ = p.modelRow.edit.SetText(values.Model)
 	_ = p.contextRow.edit.SetText(values.TranslationContext)
+	if p.glossaryEdit != nil {
+		_ = p.glossaryEdit.SetText(values.Glossary)
+	}
 	_ = p.sourceLangRow.edit.SetText(values.SourceLanguage)
 	targetLanguageOptions := buildTargetLanguageOptions(values.TargetLanguage)
 	_ = p.targetLangBox.SetModel(targetLanguageOptions)
@@ -686,6 +718,13 @@ func (p *settingsPanel) updateProviderRows(provider string) {
 	if p.contextNote != nil {
 		p.contextNote.SetVisible(usesContext)
 	}
+	usesGlossary := translator.UsesGlossary(normalized)
+	if p.glossaryRow != nil {
+		p.glossaryRow.SetVisible(usesGlossary)
+	}
+	if p.glossaryNote != nil {
+		p.glossaryNote.SetVisible(usesGlossary)
+	}
 }
 
 func (p *settingsPanel) selectedTargetLanguage() string {
@@ -694,6 +733,13 @@ func (p *settingsPanel) selectedTargetLanguage() string {
 	}
 
 	return translator.CanonicalTargetLanguage(p.targetLangBox.Text())
+}
+
+func (p *settingsPanel) glossaryText() string {
+	if p == nil || p.glossaryEdit == nil {
+		return ""
+	}
+	return p.glossaryEdit.Text()
 }
 
 func (p *settingsPanel) updateProviderButtons(provider string) {
@@ -860,6 +906,68 @@ func addSettingsLineEditRow(parent walk.Container, labelText, value string, inpu
 	}
 
 	return &settingsFieldRow{row: row, label: label, edit: edit}, nil
+}
+
+// addSettingsTextAreaRow adds a labelled multi-line TextEdit, used for free-form
+// inputs like the pinned term glossary where users enter several lines.
+func addSettingsTextAreaRow(parent walk.Container, labelText, value string, inputBrush *walk.SolidColorBrush, rowBrush walk.Brush) (*walk.Composite, *walk.Label, *walk.TextEdit, error) {
+	row, err := walk.NewComposite(parent)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	if rowBrush != nil {
+		row.SetBackground(rowBrush)
+	}
+	layout := walk.NewHBoxLayout()
+	if err := layout.SetSpacing(10); err != nil {
+		return nil, nil, nil, err
+	}
+	if err := layout.SetMargins(walk.Margins{}); err != nil {
+		return nil, nil, nil, err
+	}
+	if err := row.SetLayout(layout); err != nil {
+		return nil, nil, nil, err
+	}
+
+	label, err := walk.NewLabel(row)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	label.SetTextColor(ui.TextPrimary)
+	_ = label.SetText(labelText)
+	if err := label.SetMinMaxSize(walk.Size{Width: labelWidth, Height: 0}, walk.Size{Width: labelWidth, Height: maxFieldHeight}); err != nil {
+		return nil, nil, nil, err
+	}
+	if err := label.SetAlignment(walk.AlignHNearVNear); err != nil {
+		return nil, nil, nil, err
+	}
+
+	// WS_VSCROLL | ES_MULTILINE | ES_WANTRETURN | ES_AUTOVSCROLL
+	const (
+		wsVScroll     uint32 = 0x00200000
+		esMultiline   uint32 = 0x0004
+		esWantReturn  uint32 = 0x1000
+		esAutoVScroll uint32 = 0x0040
+	)
+	edit, err := walk.NewTextEditWithStyle(row, wsVScroll|esMultiline|esWantReturn|esAutoVScroll)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	if err := edit.SetText(value); err != nil {
+		return nil, nil, nil, err
+	}
+	edit.SetTextColor(ui.InputText)
+	if inputBrush != nil {
+		edit.SetBackground(inputBrush)
+	}
+	if err := edit.SetMinMaxSize(walk.Size{Width: 0, Height: 96}, walk.Size{Width: 0, Height: 180}); err != nil {
+		return nil, nil, nil, err
+	}
+	if err := layout.SetStretchFactor(edit, 1); err != nil {
+		return nil, nil, nil, err
+	}
+
+	return row, label, edit, nil
 }
 
 func addSettingsComboBoxRow(parent walk.Container, labelText string, options []string, value string, inputBrush *walk.SolidColorBrush, rowBrush walk.Brush) (*walk.ComboBox, error) {
@@ -1037,6 +1145,7 @@ func collectPanelSettings(
 	baseURL string,
 	model string,
 	translationContext string,
+	glossary string,
 	sourceLanguage string,
 	targetLanguage string,
 	pollMs string,
@@ -1059,6 +1168,7 @@ func collectPanelSettings(
 	updated.BaseURL = strings.TrimSpace(baseURL)
 	updated.Model = strings.TrimSpace(model)
 	updated.TranslationContext = strings.TrimSpace(translationContext)
+	updated.Glossary = strings.TrimSpace(glossary)
 	updated.SourceLanguage = strings.TrimSpace(sourceLanguage)
 	updated.TargetLanguage = translator.CanonicalTargetLanguage(targetLanguage)
 	updated.CaptionProcessName = strings.TrimSpace(processName)
