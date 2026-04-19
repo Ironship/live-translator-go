@@ -41,6 +41,12 @@ type Values struct {
 	AlwaysOnTop         bool   `json:"alwaysOnTop"`
 	ClickThrough        bool   `json:"clickThrough"`
 	WordByWord          bool   `json:"wordByWord"`
+
+	// Persisted main-window placement. Zero values mean "use default layout".
+	WindowX      int `json:"windowX,omitempty"`
+	WindowY      int `json:"windowY,omitempty"`
+	WindowWidth  int `json:"windowWidth,omitempty"`
+	WindowHeight int `json:"windowHeight,omitempty"`
 }
 
 func DefaultValues() Values {

@@ -10,6 +10,7 @@ import (
 	"live-translator-go/internal/captions"
 	"live-translator-go/internal/overlay"
 	"live-translator-go/internal/pipeline"
+	"live-translator-go/internal/settings"
 )
 
 func Run() error {
@@ -73,6 +74,12 @@ func Run() error {
 	})
 
 	window.Run()
+	// Persist window placement before tearing down.
+	if x, y, w, h := window.PersistedBounds(); w > 0 && h > 0 {
+		latest := controller.CurrentSettings()
+		latest.WindowX, latest.WindowY, latest.WindowWidth, latest.WindowHeight = x, y, w, h
+		_ = settings.Save(latest)
+	}
 	controller.Stop()
 	cancel()
 	return nil

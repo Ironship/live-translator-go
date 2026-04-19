@@ -33,6 +33,12 @@ type Config struct {
 	AlternateLineColors bool
 	AlwaysOnTop         bool
 	ClickThrough        bool
+
+	// Optional persisted window placement. Width/Height must both be > 0 to apply.
+	WindowX      int
+	WindowY      int
+	WindowWidth  int
+	WindowHeight int
 }
 
 type Window struct {
@@ -673,9 +679,56 @@ func New(config Config) (*Window, error) {
 		return nil, err
 	}
 
+	// Restore persisted window placement, if any. Must happen after applyConfig
+	// because applyConfig may resize the window based on state-specific defaults.
+	if config.WindowWidth > 0 && config.WindowHeight > 0 {
+		saved := walk.Rectangle{
+			X:      config.WindowX,
+			Y:      config.WindowY,
+			Width:  config.WindowWidth,
+			Height: config.WindowHeight,
+		}
+		window.expandedBounds = saved
+		window.collapsedBounds = saved
+		window.applyingBounds = true
+		if err := window.mainWindow.SetBoundsPixels(saved); err == nil {
+			window.storeBounds(saved)
+		}
+		window.applyingBounds = false
+	}
+
 	mainWindow.SetVisible(true)
 	window.applyTopmostState(true)
 	return window, nil
+}
+
+// PersistedBounds returns the last-known main-window placement, suitable for
+// saving to settings. The zero value is returned when nothing has been stored yet.
+func (w *Window) PersistedBounds() (x, y, width, height int) {
+	if w == nil || w.mainWindow == nil || w.mainWindow.IsDisposed() {
+		b := w.latestStoredBounds()
+		return b.X, b.Y, b.Width, b.Height
+	}
+	// Prefer live bounds when the window is still alive, but fall back to the
+	// last stored value if bounds are currently zero (e.g. minimised).
+	live := w.mainWindow.BoundsPixels()
+	if isStoredBounds(live) {
+		return live.X, live.Y, live.Width, live.Height
+	}
+	b := w.latestStoredBounds()
+	return b.X, b.Y, b.Width, b.Height
+}
+
+func (w *Window) latestStoredBounds() walk.Rectangle {
+	switch {
+	case isStoredBounds(w.expandedBounds):
+		return w.expandedBounds
+	case isStoredBounds(w.collapsedBounds):
+		return w.collapsedBounds
+	case isStoredBounds(w.focusBounds):
+		return w.focusBounds
+	}
+	return walk.Rectangle{}
 }
 
 func (w *Window) OnStarted(handler func()) {
