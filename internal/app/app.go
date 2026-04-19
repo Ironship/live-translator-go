@@ -102,7 +102,7 @@ func runPipeline(ctx context.Context, config Config, output *overlay.Window) {
 	})
 	translatorClient := config.Translator.NewClient()
 	processor := pipeline.NewProcessor(
-		pipeline.Config{RequestTimeout: config.RequestTimeout, IdleFlushDelay: config.RequestFrequency},
+		pipeline.Config{RequestTimeout: config.RequestTimeout, IdleFlushDelay: config.RequestFrequency, ShowOriginal: config.ShowOriginal},
 		translatorClient,
 		output,
 	)

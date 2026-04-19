@@ -51,6 +51,7 @@ type settingsPanel struct {
 	alwaysOnTopBox    *walk.CheckBox
 	clickThroughBox   *walk.CheckBox
 	wordByWordBox     *walk.CheckBox
+	showOriginalBox   *walk.CheckBox
 	statusLabel       *walk.Label
 	selectedProvider  string
 	base              settings.Values
@@ -408,6 +409,17 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 		panel.alternateLinesBox.SetFont(bodyFont)
 	}
 	_ = panel.alternateLinesBox.SetText("Use alternating line colors")
+	panel.showOriginalBox, err = walk.NewCheckBox(previewGroup)
+	if err != nil {
+		return nil, err
+	}
+	if sectionBrush != nil {
+		panel.showOriginalBox.SetBackground(sectionBrush)
+	}
+	if bodyFont != nil {
+		panel.showOriginalBox.SetFont(bodyFont)
+	}
+	_ = panel.showOriginalBox.SetText("Show original caption alongside translation (bilingual)")
 	panel.alternateColorRow, err = addSettingsLineEditRow(previewGroup, "Alternate line color", current.AlternateTextColor, inputBrush, sectionBrush)
 	if err != nil {
 		return nil, err
@@ -515,6 +527,7 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 		panel.alwaysOnTopBox,
 		panel.clickThroughBox,
 		panel.wordByWordBox,
+		panel.showOriginalBox,
 		applyButton,
 		testButton,
 		cancelButton,
@@ -590,6 +603,7 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 			panel.alwaysOnTopBox.Checked(),
 			panel.clickThroughBox.Checked(),
 			panel.wordByWordBox.Checked(),
+			panel.showOriginalBox.Checked(),
 		)
 		if validationMessage != "" {
 			panel.showError(validationMessage)
@@ -699,6 +713,9 @@ func (p *settingsPanel) Load(values settings.Values) {
 	p.alwaysOnTopBox.SetChecked(values.AlwaysOnTop)
 	p.clickThroughBox.SetChecked(values.ClickThrough)
 	p.wordByWordBox.SetChecked(values.WordByWord)
+	if p.showOriginalBox != nil {
+		p.showOriginalBox.SetChecked(values.ShowOriginal)
+	}
 	p.updateProviderRows(values.Provider)
 	p.updateAppearanceRows()
 	p.clearStatus()
@@ -1161,6 +1178,7 @@ func collectPanelSettings(
 	alwaysOnTop bool,
 	clickThrough bool,
 	wordByWord bool,
+	showOriginal bool,
 ) (settings.Values, string) {
 	updated := base
 	updated.Provider = translator.NormalizeProvider(provider)
@@ -1178,6 +1196,7 @@ func collectPanelSettings(
 	updated.AlwaysOnTop = alwaysOnTop
 	updated.ClickThrough = clickThrough
 	updated.WordByWord = wordByWord
+	updated.ShowOriginal = showOriginal
 
 	parsedPollMs, err := strconv.Atoi(strings.TrimSpace(pollMs))
 	if err != nil || parsedPollMs <= 0 {

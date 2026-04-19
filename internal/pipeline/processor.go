@@ -27,6 +27,10 @@ type Config struct {
 	ForceChunkAnchorWords int
 	RetryDelay            time.Duration
 	MaxRetriesPerSnapshot int
+	// ShowOriginal, when true, causes each committed translated chunk to be
+	// emitted alongside the matching source chunk so the overlay renders the
+	// original caption interleaved with its translation.
+	ShowOriginal bool
 }
 
 type Processor struct {

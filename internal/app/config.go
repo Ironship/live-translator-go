@@ -19,6 +19,7 @@ type Config struct {
 	Overlay          overlay.Config
 	RequestTimeout   time.Duration
 	RequestFrequency time.Duration
+	ShowOriginal     bool
 }
 
 func LoadSettings() (settings.Values, error) {
@@ -70,6 +71,7 @@ func ConfigFromSettings(values settings.Values) Config {
 		},
 		RequestTimeout:   time.Duration(values.RequestTimeoutMs) * time.Millisecond,
 		RequestFrequency: requestFrequency,
+		ShowOriginal:     values.ShowOriginal,
 	}
 }
 

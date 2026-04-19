@@ -42,6 +42,7 @@ type Values struct {
 	AlwaysOnTop         bool   `json:"alwaysOnTop"`
 	ClickThrough        bool   `json:"clickThrough"`
 	WordByWord          bool   `json:"wordByWord"`
+	ShowOriginal        bool   `json:"showOriginal"`
 
 	// Persisted main-window placement. Zero values mean "use default layout".
 	WindowX      int `json:"windowX,omitempty"`

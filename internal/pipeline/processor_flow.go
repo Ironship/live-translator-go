@@ -125,6 +125,10 @@ func (p *Processor) computeSnapshotOutcome(source string, value string, canceled
 			}
 		}
 
+		if p.config.ShowOriginal {
+			outputChunks, outputRemainder = interleaveBilingualChunks(sourceChunks, sourceRemainder, outputChunks, outputRemainder)
+		}
+
 		chunks = outputChunks
 		remainder = outputRemainder
 	}
@@ -160,4 +164,33 @@ func (p *Processor) scheduleRetry(retrySource string, retryDelay time.Duration) 
 		p.firstQueued = time.Now()
 		p.startNextLocked()
 	})
+}
+
+// interleaveBilingualChunks pairs committed source chunks with their matching
+// translated chunks so the overlay renders alternating original/translated
+// lines. When the two slices are not aligned (more translations than sources,
+// or vice versa), extra entries fall through unpaired at the end.
+func interleaveBilingualChunks(sourceChunks []string, sourceRemainder string, outputChunks []string, outputRemainder string) ([]string, string) {
+	if len(sourceChunks) == 0 {
+		return outputChunks, outputRemainder
+	}
+
+	paired := make([]string, 0, len(sourceChunks)+len(outputChunks))
+	n := len(sourceChunks)
+	if len(outputChunks) < n {
+		n = len(outputChunks)
+	}
+	for i := 0; i < n; i++ {
+		paired = append(paired, sourceChunks[i])
+		paired = append(paired, outputChunks[i])
+	}
+	paired = append(paired, sourceChunks[n:]...)
+	paired = append(paired, outputChunks[n:]...)
+
+	// If there is a trailing translated remainder, prepend the matching source
+	// fragment (if any) so the partial line also appears bilingual.
+	if outputRemainder != "" && sourceRemainder != "" {
+		return paired, sourceRemainder + "\n" + outputRemainder
+	}
+	return paired, outputRemainder
 }
