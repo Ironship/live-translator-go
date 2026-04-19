@@ -12,17 +12,26 @@ const IconFontFamily = "Segoe MDL2 Assets"
 // Fluent glyphs used across the UI. Keep names descriptive so callers pick
 // the right one without memorising codepoints.
 const (
-	IconPlay           = "\uE768" // Play
-	IconStop           = "\uE71A" // Stop
-	IconMicrophone     = "\uE720" // Microphone
-	IconSettings       = "\uE713" // Settings gear
-	IconChevronLeft    = "\uE76B" // Back (used for "Hide Settings")
-	IconPinned         = "\uE840" // Pinned (always-on-top enabled)
-	IconUnpin          = "\uE77A" // Unpin (always-on-top disabled)
-	IconWordByWordOn   = "\uE97F" // Character / text effect
-	IconWordByWordOff  = "\uE8D2" // Font / Aa
-	IconClear          = "\uE894" // Clear
-	IconEnterFocus     = "\uE1D9" // Full screen / focus
-	IconExitFocus      = "\uE73F" // Back to window / exit focus
-	IconClose          = "\uE8BB" // Cancel / close
+	IconPlay          = "\uE768" // Play
+	IconStop          = "\uE71A" // Stop
+	IconMicrophone    = "\uE720" // Microphone
+	IconSettings      = "\uE713" // Settings gear
+	IconChevronLeft   = "\uE76B" // Back (used for "Hide Settings")
+	IconPinned        = "\uE840" // Pinned (always-on-top enabled)
+	IconUnpin         = "\uE77A" // Unpin (always-on-top disabled)
+	IconWordByWordOn  = "\uE97F" // Character / text effect
+	IconWordByWordOff = "\uE8D2" // Font / Aa
+	IconClear         = "\uE894" // Clear
+	IconEnterFocus    = "\uE1D9" // Full screen / focus
+	IconExitFocus     = "\uE73F" // Back to window / exit focus
+	IconClose         = "\uE8BB" // Cancel / close
+)
+// Text-symbol glyphs that render with normal UI fonts (Segoe UI) — safe to
+// prepend to regular button or label text without switching fonts.
+const (
+	BulletSelected = "\u25CF " // ● — filled bullet prefix for selected item
+	BulletIdle     = "   "     // three spaces — keeps text alignment with selected entries
+	SymbolSave     = "\u2713 " // ✓
+	SymbolTest     = "\u27F3 " // ⟳
+	SymbolCancel   = "\u2715 " // ✕
 )

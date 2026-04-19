@@ -51,6 +51,9 @@ type settingsPanel struct {
 	base              settings.Values
 	onSave            func(settings.Values) error
 	onCancel          func()
+	providerLabels    []string
+	tabFont           *walk.Font
+	tabFontSelected   *walk.Font
 }
 
 func newSettingsPanel(parent walk.Container, current settings.Values, onSave func(settings.Values) error, onCancel func()) (*settingsPanel, error) {
@@ -82,6 +85,27 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 		inputBrush = brush
 	}
 
+	// Fonts: dedicated styles for eyebrow, heading, body, and actions so the
+	// panel looks typographically organised rather than using walk defaults.
+	fontOwner, _ := parent.(interface{ AddDisposable(walk.Disposable) })
+	mkFont := func(family string, size int, style walk.FontStyle) *walk.Font {
+		f, err := walk.NewFont(family, size, style)
+		if err != nil {
+			return nil
+		}
+		if fontOwner != nil {
+			fontOwner.AddDisposable(f)
+		}
+		return f
+	}
+	eyebrowFont := mkFont("Bahnschrift SemiCondensed", 10, walk.FontBold)
+	introFont := mkFont("Segoe UI", 10, 0)
+	headingFont := mkFont("Segoe UI Semibold", 12, walk.FontBold)
+	bodyFont := mkFont("Segoe UI", 10, 0)
+	tabFont := mkFont("Segoe UI", 10, 0)
+	tabFontSelected := mkFont("Segoe UI Semibold", 10, walk.FontBold)
+	footerFont := mkFont("Segoe UI Semibold", 10, walk.FontBold)
+
 	layout := walk.NewVBoxLayout()
 	if err := layout.SetSpacing(16); err != nil {
 		return nil, err
@@ -100,12 +124,18 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	if err != nil {
 		return nil, err
 	}
+	if eyebrowFont != nil {
+		sectionEyebrow.SetFont(eyebrowFont)
+	}
 	sectionEyebrow.SetTextColor(ui.AccentSoft)
 	_ = sectionEyebrow.SetText("QUICK SETUP")
 
 	intro, err := walk.NewLabel(parent)
 	if err != nil {
 		return nil, err
+	}
+	if introFont != nil {
+		intro.SetFont(introFont)
 	}
 	intro.SetTextColor(ui.TextSecondary)
 	_ = intro.SetText("Provider, source window, and preview options are grouped into focused tabs so you can change one thing at a time without hunting through the whole form.")
@@ -150,7 +180,10 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	if err != nil {
 		return nil, err
 	}
-	if err := translationTabButton.SetMinMaxSize(walk.Size{Width: 132, Height: 34}, walk.Size{Width: 16777215, Height: 34}); err != nil {
+	if tabFont != nil {
+		translationTabButton.SetFont(tabFont)
+	}
+	if err := translationTabButton.SetMinMaxSize(walk.Size{Width: 156, Height: 38}, walk.Size{Width: 16777215, Height: 38}); err != nil {
 		return nil, err
 	}
 
@@ -158,7 +191,10 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	if err != nil {
 		return nil, err
 	}
-	if err := captionsTabButton.SetMinMaxSize(walk.Size{Width: 132, Height: 34}, walk.Size{Width: 16777215, Height: 34}); err != nil {
+	if tabFont != nil {
+		captionsTabButton.SetFont(tabFont)
+	}
+	if err := captionsTabButton.SetMinMaxSize(walk.Size{Width: 156, Height: 38}, walk.Size{Width: 16777215, Height: 38}); err != nil {
 		return nil, err
 	}
 
@@ -166,7 +202,10 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	if err != nil {
 		return nil, err
 	}
-	if err := appearanceTabButton.SetMinMaxSize(walk.Size{Width: 132, Height: 34}, walk.Size{Width: 16777215, Height: 34}); err != nil {
+	if tabFont != nil {
+		appearanceTabButton.SetFont(tabFont)
+	}
+	if err := appearanceTabButton.SetMinMaxSize(walk.Size{Width: 156, Height: 38}, walk.Size{Width: 16777215, Height: 38}); err != nil {
 		return nil, err
 	}
 
@@ -195,11 +234,11 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	if err != nil {
 		return nil, err
 	}
-	translationGroup, err := newSettingsSection(translationPage, "Translation provider", sectionBrush)
+	translationGroup, err := newSettingsSection(translationPage, "Translation provider", sectionBrush, headingFont, bodyFont)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := addSettingsGroupNote(translationGroup, "Choose the backend, then use Test Connection before you close the panel."); err != nil {
+	if _, err := addSettingsGroupNote(translationGroup, "Choose the backend, then use Test Connection before you close the panel.", bodyFont); err != nil {
 		return nil, err
 	}
 	panel.providerButtons, err = addSettingsProviderRow(translationGroup, translator.ProviderOptions(), current.Provider, sectionBrush)
@@ -209,6 +248,9 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	panel.providerHint, err = walk.NewLabel(translationGroup)
 	if err != nil {
 		return nil, err
+	}
+	if bodyFont != nil {
+		panel.providerHint.SetFont(bodyFont)
 	}
 	panel.providerHint.SetTextColor(ui.TextSecondary)
 	panel.apiKeyRow, err = addSettingsLineEditRow(translationGroup, translator.APIKeyLabel(current.Provider), current.APIKey, inputBrush, sectionBrush)
@@ -228,15 +270,15 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	if err != nil {
 		return nil, err
 	}
-	if _, err := addSettingsGroupNote(translationGroup, "Optional: used by Ollama and LM Studio as additional context in the translation prompt."); err != nil {
+	if _, err := addSettingsGroupNote(translationGroup, "Optional: used by Ollama and LM Studio as additional context in the translation prompt.", bodyFont); err != nil {
 		return nil, err
 	}
 
-	languagesGroup, err := newSettingsSection(translationPage, "Languages", sectionBrush)
+	languagesGroup, err := newSettingsSection(translationPage, "Languages", sectionBrush, headingFont, bodyFont)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := addSettingsGroupNote(languagesGroup, "Leave source on auto unless you have a stable single-language input."); err != nil {
+	if _, err := addSettingsGroupNote(languagesGroup, "Leave source on auto unless you have a stable single-language input.", bodyFont); err != nil {
 		return nil, err
 	}
 	panel.sourceLangRow, err = addSettingsLineEditRow(languagesGroup, "Source language", current.SourceLanguage, inputBrush, sectionBrush)
@@ -253,11 +295,11 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	if err != nil {
 		return nil, err
 	}
-	windowGroup, err := newSettingsSection(captionsPage, "Source window", sectionBrush)
+	windowGroup, err := newSettingsSection(captionsPage, "Source window", sectionBrush, headingFont, bodyFont)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := addSettingsGroupNote(windowGroup, "Defaults match the current Windows 11 Live Captions window. Change these only if Microsoft changes the UI element names."); err != nil {
+	if _, err := addSettingsGroupNote(windowGroup, "Defaults match the current Windows 11 Live Captions window. Change these only if Microsoft changes the UI element names.", bodyFont); err != nil {
 		return nil, err
 	}
 	panel.processRow, err = addSettingsLineEditRow(windowGroup, "Process name", current.CaptionProcessName, inputBrush, sectionBrush)
@@ -273,11 +315,11 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 		return nil, err
 	}
 
-	timingGroup, err := newSettingsSection(captionsPage, "Timing and latency", sectionBrush)
+	timingGroup, err := newSettingsSection(captionsPage, "Timing and latency", sectionBrush, headingFont, bodyFont)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := addSettingsGroupNote(timingGroup, "Lower polling feels snappier but can create more churn when captions change very quickly."); err != nil {
+	if _, err := addSettingsGroupNote(timingGroup, "Lower polling feels snappier but can create more churn when captions change very quickly.", bodyFont); err != nil {
 		return nil, err
 	}
 	panel.pollMsRow, err = addSettingsLineEditRow(timingGroup, "Caption poll ms", strconv.Itoa(current.CaptionPollMs), inputBrush, sectionBrush)
@@ -299,8 +341,11 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	if sectionBrush != nil {
 		panel.wordByWordBox.SetBackground(sectionBrush)
 	}
+	if bodyFont != nil {
+		panel.wordByWordBox.SetFont(bodyFont)
+	}
 	_ = panel.wordByWordBox.SetText("Translate word by word (like Live Captions)")
-	if _, err := addSettingsGroupNote(timingGroup, "When enabled, translations start immediately on each caption change. Request frequency ms is ignored."); err != nil {
+	if _, err := addSettingsGroupNote(timingGroup, "When enabled, translations start immediately on each caption change. Request frequency ms is ignored.", bodyFont); err != nil {
 		return nil, err
 	}
 
@@ -308,11 +353,11 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	if err != nil {
 		return nil, err
 	}
-	previewGroup, err := newSettingsSection(appearancePage, "Preview", sectionBrush)
+	previewGroup, err := newSettingsSection(appearancePage, "Preview", sectionBrush, headingFont, bodyFont)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := addSettingsGroupNote(previewGroup, "Font size updates immediately. Use #RRGGBB for line colors, then enable alternating colors if adjacent lines should swap colors."); err != nil {
+	if _, err := addSettingsGroupNote(previewGroup, "Font size updates immediately. Use #RRGGBB for line colors, then enable alternating colors if adjacent lines should swap colors.", bodyFont); err != nil {
 		return nil, err
 	}
 	panel.fontSizeRow, err = addSettingsLineEditRow(previewGroup, "Font size", strconv.Itoa(current.FontSize), inputBrush, sectionBrush)
@@ -330,6 +375,9 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	if sectionBrush != nil {
 		panel.alternateLinesBox.SetBackground(sectionBrush)
 	}
+	if bodyFont != nil {
+		panel.alternateLinesBox.SetFont(bodyFont)
+	}
 	_ = panel.alternateLinesBox.SetText("Use alternating line colors")
 	panel.alternateColorRow, err = addSettingsLineEditRow(previewGroup, "Alternate line color", current.AlternateTextColor, inputBrush, sectionBrush)
 	if err != nil {
@@ -342,6 +390,9 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	if sectionBrush != nil {
 		panel.alwaysOnTopBox.SetBackground(sectionBrush)
 	}
+	if bodyFont != nil {
+		panel.alwaysOnTopBox.SetFont(bodyFont)
+	}
 	_ = panel.alwaysOnTopBox.SetText("Keep window always on top")
 	panel.clickThroughBox, err = walk.NewCheckBox(previewGroup)
 	if err != nil {
@@ -349,6 +400,9 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	}
 	if sectionBrush != nil {
 		panel.clickThroughBox.SetBackground(sectionBrush)
+	}
+	if bodyFont != nil {
+		panel.clickThroughBox.SetFont(bodyFont)
 	}
 	_ = panel.clickThroughBox.SetText("Allow click-through in compact mode")
 	panel.alternateLinesBox.CheckedChanged().Attach(func() {
@@ -377,6 +431,9 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	if err != nil {
 		return nil, err
 	}
+	if bodyFont != nil {
+		panel.statusLabel.SetFont(bodyFont)
+	}
 	panel.statusLabel.SetTextColor(ui.Error)
 	if err := footerLayout.SetStretchFactor(panel.statusLabel, 1); err != nil {
 		return nil, err
@@ -386,7 +443,11 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	if err != nil {
 		return nil, err
 	}
-	_ = applyButton.SetText("Apply")
+	if footerFont != nil {
+		applyButton.SetFont(footerFont)
+	}
+	_ = applyButton.SetText(ui.SymbolSave + "Save")
+	_ = applyButton.SetToolTipText("Save settings and apply them immediately")
 	if err := applyButton.SetMinMaxSize(walk.Size{Width: 124, Height: 40}, walk.Size{Width: 164, Height: 40}); err != nil {
 		return nil, err
 	}
@@ -395,8 +456,12 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	if err != nil {
 		return nil, err
 	}
-	_ = testButton.SetText("Test Connection")
-	if err := testButton.SetMinMaxSize(walk.Size{Width: 156, Height: 40}, walk.Size{Width: 196, Height: 40}); err != nil {
+	if footerFont != nil {
+		testButton.SetFont(footerFont)
+	}
+	_ = testButton.SetText(ui.SymbolTest + "Test Connection")
+	_ = testButton.SetToolTipText("Send a small test request to the selected provider")
+	if err := testButton.SetMinMaxSize(walk.Size{Width: 176, Height: 40}, walk.Size{Width: 216, Height: 40}); err != nil {
 		return nil, err
 	}
 
@@ -404,7 +469,11 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	if err != nil {
 		return nil, err
 	}
-	_ = cancelButton.SetText("Close")
+	if footerFont != nil {
+		cancelButton.SetFont(footerFont)
+	}
+	_ = cancelButton.SetText(ui.SymbolCancel + "Close")
+	_ = cancelButton.SetToolTipText("Discard unsaved edits and close the settings panel")
 	if err := cancelButton.SetMinMaxSize(walk.Size{Width: 124, Height: 40}, walk.Size{Width: 164, Height: 40}); err != nil {
 		return nil, err
 	}
@@ -428,14 +497,22 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	tabTitles := []string{"Translation", "Live Captions", "Appearance"}
 	tabButtons := []*walk.PushButton{translationTabButton, captionsTabButton, appearanceTabButton}
 	tabPages := []*walk.Composite{translationPage, captionsPage, appearancePage}
+	panel.tabFont = tabFont
+	panel.tabFontSelected = tabFontSelected
 	showTab := func(index int) {
 		for i, page := range tabPages {
 			page.SetVisible(i == index)
-			label := tabTitles[i]
 			if i == index {
-				label = "[" + label + "]"
+				_ = tabButtons[i].SetText(ui.BulletSelected + tabTitles[i])
+				if tabFontSelected != nil {
+					tabButtons[i].SetFont(tabFontSelected)
+				}
+			} else {
+				_ = tabButtons[i].SetText(ui.BulletIdle + tabTitles[i])
+				if tabFont != nil {
+					tabButtons[i].SetFont(tabFont)
+				}
 			}
-			_ = tabButtons[i].SetText(label)
 		}
 	}
 
@@ -443,8 +520,14 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	captionsTabButton.Clicked().Attach(func() { showTab(1) })
 	appearanceTabButton.Clicked().Attach(func() { showTab(2) })
 
-	for _, button := range panel.providerButtons {
-		providerName := strings.Trim(button.Text(), "[]")
+	// Snapshot original provider labels so we can redraw selection state without
+	// accumulating bullet prefixes on repeated toggles.
+	panel.providerLabels = make([]string, len(panel.providerButtons))
+	for i, button := range panel.providerButtons {
+		panel.providerLabels[i] = button.Text()
+	}
+	for i, button := range panel.providerButtons {
+		providerName := panel.providerLabels[i]
 		button.Clicked().Attach(func() {
 			nextProvider := translator.NormalizeProvider(providerName)
 			applySettingsProviderDefaults(panel.selectedProvider, nextProvider, panel.baseURLRow.edit, panel.modelRow.edit)
@@ -608,14 +691,19 @@ func (p *settingsPanel) selectedTargetLanguage() string {
 
 func (p *settingsPanel) updateProviderButtons(provider string) {
 	normalized := translator.NormalizeProvider(provider)
-	for _, button := range p.providerButtons {
-		label := button.Text()
-		label = strings.TrimPrefix(label, "[")
-		label = strings.TrimSuffix(label, "]")
+	for i, button := range p.providerButtons {
+		label := p.providerLabels[i]
 		if translator.NormalizeProvider(label) == normalized {
-			label = "[" + label + "]"
+			_ = button.SetText(ui.BulletSelected + label)
+			if p.tabFontSelected != nil {
+				button.SetFont(p.tabFontSelected)
+			}
+		} else {
+			_ = button.SetText(ui.BulletIdle + label)
+			if p.tabFont != nil {
+				button.SetFont(p.tabFont)
+			}
 		}
-		_ = button.SetText(label)
 	}
 }
 
@@ -667,7 +755,7 @@ func newSettingsPage(parent walk.Container, background walk.Brush) (*walk.Compos
 	return page, nil
 }
 
-func newSettingsSection(parent walk.Container, title string, background walk.Brush) (*walk.Composite, error) {
+func newSettingsSection(parent walk.Container, title string, background walk.Brush, headingFont, titleFont *walk.Font) (*walk.Composite, error) {
 	group, err := walk.NewComposite(parent)
 	if err != nil {
 		return nil, err
@@ -689,15 +777,28 @@ func newSettingsSection(parent walk.Container, title string, background walk.Bru
 	if err != nil {
 		return nil, err
 	}
-	heading.SetTextColor(ui.AccentSoft)
+	if headingFont != nil {
+		heading.SetFont(headingFont)
+	} else if titleFont != nil {
+		heading.SetFont(titleFont)
+	}
+	heading.SetTextColor(ui.TextPrimary)
 	_ = heading.SetText(title)
+
+	divider, err := walk.NewHSeparator(group)
+	if err == nil {
+		_ = divider.SetMinMaxSize(walk.Size{Width: 0, Height: 1}, walk.Size{Width: 16777215, Height: 1})
+	}
 	return group, nil
 }
 
-func addSettingsGroupNote(parent walk.Container, text string) (*walk.Label, error) {
+func addSettingsGroupNote(parent walk.Container, text string, font *walk.Font) (*walk.Label, error) {
 	note, err := walk.NewLabel(parent)
 	if err != nil {
 		return nil, err
+	}
+	if font != nil {
+		note.SetFont(font)
 	}
 	note.SetTextColor(ui.TextMuted)
 	_ = note.SetText(text)
