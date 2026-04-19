@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"live-translator-go/internal/i18n"
 	"live-translator-go/internal/settings"
 	"live-translator-go/internal/translator"
 	"live-translator-go/internal/ui"
@@ -52,6 +53,7 @@ type settingsPanel struct {
 	clickThroughBox   *walk.CheckBox
 	wordByWordBox     *walk.CheckBox
 	showOriginalBox   *walk.CheckBox
+	languageBox       *walk.ComboBox
 	statusLabel       *walk.Label
 	selectedProvider  string
 	base              settings.Values
@@ -450,6 +452,23 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 		panel.updateAppearanceRows()
 	})
 
+	languageGroup, err := newSettingsSection(appearancePage, "Interface language", sectionBrush, headingFont, bodyFont)
+	if err != nil {
+		return nil, err
+	}
+	languageOptions := []string{i18n.DisplayName(i18n.LangEN), i18n.DisplayName(i18n.LangPL)}
+	currentLanguageIdx := 0
+	if i18n.Normalize(current.UILanguage) == i18n.LangPL {
+		currentLanguageIdx = 1
+	}
+	panel.languageBox, err = addSettingsComboBoxRow(languageGroup, "Language", languageOptions, languageOptions[currentLanguageIdx], inputBrush, sectionBrush)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := addSettingsGroupNote(languageGroup, i18n.T(current.UILanguage, "settings.languageNote"), bodyFont); err != nil {
+		return nil, err
+	}
+
 	footer, err := walk.NewComposite(parent)
 	if err != nil {
 		return nil, err
@@ -604,6 +623,7 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 			panel.clickThroughBox.Checked(),
 			panel.wordByWordBox.Checked(),
 			panel.showOriginalBox.Checked(),
+			panel.selectedLanguageCode(),
 		)
 		if validationMessage != "" {
 			panel.showError(validationMessage)
@@ -716,6 +736,13 @@ func (p *settingsPanel) Load(values settings.Values) {
 	if p.showOriginalBox != nil {
 		p.showOriginalBox.SetChecked(values.ShowOriginal)
 	}
+	if p.languageBox != nil {
+		idx := 0
+		if i18n.Normalize(values.UILanguage) == i18n.LangPL {
+			idx = 1
+		}
+		_ = p.languageBox.SetCurrentIndex(idx)
+	}
 	p.updateProviderRows(values.Provider)
 	p.updateAppearanceRows()
 	p.clearStatus()
@@ -757,6 +784,16 @@ func (p *settingsPanel) glossaryText() string {
 		return ""
 	}
 	return p.glossaryEdit.Text()
+}
+
+func (p *settingsPanel) selectedLanguageCode() string {
+	if p == nil || p.languageBox == nil {
+		return i18n.DefaultLanguage
+	}
+	if p.languageBox.CurrentIndex() == 1 {
+		return i18n.LangPL
+	}
+	return i18n.LangEN
 }
 
 func (p *settingsPanel) updateProviderButtons(provider string) {
@@ -1179,6 +1216,7 @@ func collectPanelSettings(
 	clickThrough bool,
 	wordByWord bool,
 	showOriginal bool,
+	uiLanguage string,
 ) (settings.Values, string) {
 	updated := base
 	updated.Provider = translator.NormalizeProvider(provider)
@@ -1197,6 +1235,7 @@ func collectPanelSettings(
 	updated.ClickThrough = clickThrough
 	updated.WordByWord = wordByWord
 	updated.ShowOriginal = showOriginal
+	updated.UILanguage = i18n.Normalize(uiLanguage)
 
 	parsedPollMs, err := strconv.Atoi(strings.TrimSpace(pollMs))
 	if err != nil || parsedPollMs <= 0 {

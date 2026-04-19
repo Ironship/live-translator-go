@@ -43,6 +43,7 @@ type Values struct {
 	ClickThrough        bool   `json:"clickThrough"`
 	WordByWord          bool   `json:"wordByWord"`
 	ShowOriginal        bool   `json:"showOriginal"`
+	UILanguage          string `json:"uiLanguage,omitempty"`
 
 	// Persisted main-window placement. Zero values mean "use default layout".
 	WindowX      int `json:"windowX,omitempty"`
@@ -157,6 +158,10 @@ func Sanitize(values Values) Values {
 	}
 	values.TranslationContext = strings.TrimSpace(values.TranslationContext)
 	values.Glossary = strings.TrimSpace(values.Glossary)
+	values.UILanguage = strings.ToLower(strings.TrimSpace(values.UILanguage))
+	if values.UILanguage != "pl" && values.UILanguage != "en" {
+		values.UILanguage = ""
+	}
 	values.SourceLanguage = defaultString(values.SourceLanguage, defaults.SourceLanguage)
 	values.TargetLanguage = defaultString(values.TargetLanguage, defaults.TargetLanguage)
 	values.CaptionProcessName = defaultString(values.CaptionProcessName, defaults.CaptionProcessName)

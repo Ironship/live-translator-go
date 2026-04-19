@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"unsafe"
 
+	"live-translator-go/internal/i18n"
 	"live-translator-go/internal/ui"
 
 	"github.com/lxn/walk"
@@ -39,6 +40,10 @@ type Config struct {
 	WindowY      int
 	WindowWidth  int
 	WindowHeight int
+
+	// Language selects the UI locale (e.g. "en", "pl") for tooltips and other
+	// fixed overlay labels. Empty falls back to English.
+	Language string
 }
 
 type Window struct {
@@ -84,6 +89,7 @@ type Window struct {
 	focusMode          bool
 	alwaysOnTopEnabled bool
 	wordByWordEnabled  bool
+	language           string
 	increaseFontSize   func()
 	decreaseFontSize   func()
 }
@@ -329,17 +335,17 @@ func New(config Config) (*Window, error) {
 		return btn, nil
 	}
 
-	openCaptionsButton, err := newIconButton(ui.IconPlay, "Start / restart Live Captions")
+	openCaptionsButton, err := newIconButton(ui.IconPlay, i18n.T(config.Language, "toolbar.start"))
 	if err != nil {
 		return nil, err
 	}
 
-	speechPanelButton, err := newIconButton(ui.IconMicrophone, "Open Windows speech recognition panel")
+	speechPanelButton, err := newIconButton(ui.IconMicrophone, i18n.T(config.Language, "toolbar.openPanel"))
 	if err != nil {
 		return nil, err
 	}
 
-	settingsButton, err := newIconButton(ui.IconSettings, "Settings")
+	settingsButton, err := newIconButton(ui.IconSettings, i18n.T(config.Language, "toolbar.settings"))
 	if err != nil {
 		return nil, err
 	}
@@ -349,17 +355,17 @@ func New(config Config) (*Window, error) {
 		_ = sep.SetMinMaxSize(walk.Size{Width: 1, Height: 24}, walk.Size{Width: 1, Height: 24})
 	}
 
-	alwaysOnTopButton, err := newIconButton(ui.IconPinned, "Always on top: on (click to disable)")
+	alwaysOnTopButton, err := newIconButton(ui.IconPinned, i18n.T(config.Language, "toolbar.alwaysOnTop")+i18n.T(config.Language, "toolbar.onSuffix"))
 	if err != nil {
 		return nil, err
 	}
 
-	wordByWordButton, err := newIconButton(ui.IconWordByWordOff, "Word-by-word rendering: off (click to enable)")
+	wordByWordButton, err := newIconButton(ui.IconWordByWordOff, i18n.T(config.Language, "toolbar.wordByWord")+i18n.T(config.Language, "toolbar.offSuffix"))
 	if err != nil {
 		return nil, err
 	}
 
-	focusButton, err := newIconButton(ui.IconEnterFocus, "Enter focus mode (Esc to exit)")
+	focusButton, err := newIconButton(ui.IconEnterFocus, i18n.T(config.Language, "toolbar.focus"))
 	if err != nil {
 		return nil, err
 	}
@@ -369,12 +375,12 @@ func New(config Config) (*Window, error) {
 		_ = sep.SetMinMaxSize(walk.Size{Width: 1, Height: 24}, walk.Size{Width: 1, Height: 24})
 	}
 
-	clearButton, err := newIconButton(ui.IconClear, "Clear captions")
+	clearButton, err := newIconButton(ui.IconClear, i18n.T(config.Language, "toolbar.clear"))
 	if err != nil {
 		return nil, err
 	}
 
-	exitButton, err := newIconButton(ui.IconClose, "Exit Live Translator")
+	exitButton, err := newIconButton(ui.IconClose, i18n.T(config.Language, "toolbar.exit"))
 	if err != nil {
 		return nil, err
 	}
@@ -605,6 +611,7 @@ func New(config Config) (*Window, error) {
 		captionHistory:  append([]previewLine(nil), initialPreviewLines...),
 		currentConfig:   config,
 		settingsVisible: false,
+		language:        i18n.Normalize(config.Language),
 	}
 	window.mainWindow.Disposing().Attach(func() {
 		previewSurface.Stop()
@@ -1099,15 +1106,15 @@ func (w *Window) updateActionButtons() {
 		_ = w.settings.SetToolTipText("Hide settings")
 	} else {
 		_ = w.settings.SetText(ui.IconSettings)
-		_ = w.settings.SetToolTipText("Settings")
+		_ = w.settings.SetToolTipText(i18n.T(w.language, "toolbar.settings"))
 	}
 
 	if w.alwaysOnTopEnabled {
 		_ = w.alwaysOnTop.SetText(ui.IconPinned)
-		_ = w.alwaysOnTop.SetToolTipText("Always on top: on (click to disable)")
+		_ = w.alwaysOnTop.SetToolTipText(i18n.T(w.language, "toolbar.alwaysOnTop") + i18n.T(w.language, "toolbar.onSuffix"))
 	} else {
 		_ = w.alwaysOnTop.SetText(ui.IconUnpin)
-		_ = w.alwaysOnTop.SetToolTipText("Always on top: off (click to enable)")
+		_ = w.alwaysOnTop.SetToolTipText(i18n.T(w.language, "toolbar.alwaysOnTop") + i18n.T(w.language, "toolbar.offSuffix"))
 	}
 
 	if w.focusMode {
@@ -1115,7 +1122,7 @@ func (w *Window) updateActionButtons() {
 		_ = w.focus.SetToolTipText("Exit focus mode (Esc)")
 	} else {
 		_ = w.focus.SetText(ui.IconEnterFocus)
-		_ = w.focus.SetToolTipText("Enter focus mode (Esc to exit)")
+		_ = w.focus.SetToolTipText(i18n.T(w.language, "toolbar.focus"))
 	}
 
 	w.updateWordByWordButton(w.wordByWordEnabled)
@@ -1125,10 +1132,10 @@ func (w *Window) updateWordByWordButton(enabled bool) {
 	w.wordByWordEnabled = enabled
 	if enabled {
 		_ = w.wordByWord.SetText(ui.IconWordByWordOn)
-		_ = w.wordByWord.SetToolTipText("Word-by-word rendering: on (click to disable)")
+		_ = w.wordByWord.SetToolTipText(i18n.T(w.language, "toolbar.wordByWord") + i18n.T(w.language, "toolbar.onSuffix"))
 	} else {
 		_ = w.wordByWord.SetText(ui.IconWordByWordOff)
-		_ = w.wordByWord.SetToolTipText("Word-by-word rendering: off (click to enable)")
+		_ = w.wordByWord.SetToolTipText(i18n.T(w.language, "toolbar.wordByWord") + i18n.T(w.language, "toolbar.offSuffix"))
 	}
 }
 

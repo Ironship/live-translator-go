@@ -68,6 +68,7 @@ func ConfigFromSettings(values settings.Values) Config {
 			WindowY:             values.WindowY,
 			WindowWidth:         values.WindowWidth,
 			WindowHeight:        values.WindowHeight,
+			Language:            values.UILanguage,
 		},
 		RequestTimeout:   time.Duration(values.RequestTimeoutMs) * time.Millisecond,
 		RequestFrequency: requestFrequency,
