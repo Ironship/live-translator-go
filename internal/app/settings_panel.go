@@ -31,6 +31,7 @@ type settingsPanel struct {
 	baseURLRow        *settingsFieldRow
 	modelRow          *settingsFieldRow
 	contextRow        *settingsFieldRow
+	contextNote       *walk.Label
 	sourceLangRow     *settingsFieldRow
 	targetLangBox     *walk.ComboBox
 	pollMsRow         *settingsFieldRow
@@ -266,11 +267,12 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	if err != nil {
 		return nil, err
 	}
-	panel.contextRow, err = addSettingsLineEditRow(translationGroup, "Translation context", current.TranslationContext, inputBrush, sectionBrush)
+	panel.contextRow, err = addSettingsLineEditRow(translationGroup, "Translation context (optional)", current.TranslationContext, inputBrush, sectionBrush)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := addSettingsGroupNote(translationGroup, "Optional: used by Ollama and LM Studio as additional context in the translation prompt.", bodyFont); err != nil {
+	panel.contextNote, err = addSettingsGroupNote(translationGroup, "Optional: used by Ollama and LM Studio as additional context in the translation prompt.", bodyFont)
+	if err != nil {
 		return nil, err
 	}
 
@@ -679,6 +681,11 @@ func (p *settingsPanel) updateProviderRows(provider string) {
 	p.baseURLRow.row.SetVisible(translator.UsesBaseURL(normalized))
 	_ = p.modelRow.label.SetText(translator.ModelLabel(normalized))
 	p.modelRow.row.SetVisible(translator.UsesModel(normalized))
+	usesContext := translator.UsesTranslationContext(normalized)
+	p.contextRow.row.SetVisible(usesContext)
+	if p.contextNote != nil {
+		p.contextNote.SetVisible(usesContext)
+	}
 }
 
 func (p *settingsPanel) selectedTargetLanguage() string {

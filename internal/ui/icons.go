@@ -26,6 +26,7 @@ const (
 	IconExitFocus     = "\uE73F" // Back to window / exit focus
 	IconClose         = "\uE8BB" // Cancel / close
 )
+
 // Text-symbol glyphs that render with normal UI fonts (Segoe UI) — safe to
 // prepend to regular button or label text without switching fonts.
 const (

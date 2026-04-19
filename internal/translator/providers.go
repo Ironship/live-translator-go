@@ -98,6 +98,18 @@ func RequiresAPIKey(provider string) bool {
 	}
 }
 
+// UsesTranslationContext reports whether the provider can incorporate the
+// optional free-form translation context hint (currently only chat-completions
+// backends such as Ollama and LM Studio).
+func UsesTranslationContext(provider string) bool {
+	switch NormalizeProvider(provider) {
+	case ProviderOllama, ProviderLMStudio:
+		return true
+	default:
+		return false
+	}
+}
+
 func IsConfigured(provider string, apiKey string, model string) bool {
 	provider = NormalizeProvider(provider)
 	if RequiresAPIKey(provider) && strings.TrimSpace(apiKey) == "" {
