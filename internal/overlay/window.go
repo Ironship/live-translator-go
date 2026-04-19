@@ -216,11 +216,11 @@ func New(config Config) (*Window, error) {
 	}
 	mainWindow.AddDisposable(bodyFont)
 
-	buttonFont, err := walk.NewFont("Segoe UI Semibold", 10, 0)
+	iconFont, err := walk.NewFont(ui.IconFontFamily, 12, 0)
 	if err != nil {
 		return nil, err
 	}
-	mainWindow.AddDisposable(buttonFont)
+	mainWindow.AddDisposable(iconFont)
 
 	headerCard, err := walk.NewComposite(shell)
 	if err != nil {
@@ -305,83 +305,71 @@ func New(config Config) (*Window, error) {
 	}
 	buttonRow.SetBackground(headerBrush)
 
-	openCaptionsButton, err := walk.NewPushButton(buttonRow)
-	if err != nil {
-		return nil, err
+	newIconButton := func(glyph, tooltip string) (*walk.PushButton, error) {
+		btn, err := walk.NewPushButton(buttonRow)
+		if err != nil {
+			return nil, err
+		}
+		btn.SetFont(iconFont)
+		if err := btn.SetText(glyph); err != nil {
+			return nil, err
+		}
+		if err := btn.SetToolTipText(tooltip); err != nil {
+			return nil, err
+		}
+		if err := btn.SetMinMaxSize(walk.Size{Width: 42, Height: 34}, walk.Size{Width: 42, Height: 34}); err != nil {
+			return nil, err
+		}
+		return btn, nil
 	}
-	openCaptionsButton.SetFont(buttonFont)
-	_ = openCaptionsButton.SetText("Start")
-	if err := openCaptionsButton.SetMinMaxSize(walk.Size{Width: 86, Height: 34}, walk.Size{Width: 16777215, Height: 34}); err != nil {
+
+	openCaptionsButton, err := newIconButton(ui.IconPlay, "Start / restart Live Captions")
+	if err != nil {
 		return nil, err
 	}
 
-	speechPanelButton, err := walk.NewPushButton(buttonRow)
+	speechPanelButton, err := newIconButton(ui.IconMicrophone, "Open Windows speech recognition panel")
 	if err != nil {
-		return nil, err
-	}
-	speechPanelButton.SetFont(buttonFont)
-	_ = speechPanelButton.SetText("Speech")
-	if err := speechPanelButton.SetMinMaxSize(walk.Size{Width: 78, Height: 34}, walk.Size{Width: 16777215, Height: 34}); err != nil {
 		return nil, err
 	}
 
-	settingsButton, err := walk.NewPushButton(buttonRow)
+	settingsButton, err := newIconButton(ui.IconSettings, "Settings")
 	if err != nil {
-		return nil, err
-	}
-	settingsButton.SetFont(buttonFont)
-	_ = settingsButton.SetText("Settings")
-	if err := settingsButton.SetMinMaxSize(walk.Size{Width: 88, Height: 34}, walk.Size{Width: 16777215, Height: 34}); err != nil {
 		return nil, err
 	}
 
-	alwaysOnTopButton, err := walk.NewPushButton(buttonRow)
-	if err != nil {
-		return nil, err
+	// Visual separator between primary actions and toggles.
+	if sep, err := walk.NewVSeparator(buttonRow); err == nil {
+		_ = sep.SetMinMaxSize(walk.Size{Width: 1, Height: 24}, walk.Size{Width: 1, Height: 24})
 	}
-	alwaysOnTopButton.SetFont(buttonFont)
-	_ = alwaysOnTopButton.SetText("On Top: On")
-	if err := alwaysOnTopButton.SetMinMaxSize(walk.Size{Width: 102, Height: 34}, walk.Size{Width: 16777215, Height: 34}); err != nil {
+
+	alwaysOnTopButton, err := newIconButton(ui.IconPinned, "Always on top: on (click to disable)")
+	if err != nil {
 		return nil, err
 	}
 
-	wordByWordButton, err := walk.NewPushButton(buttonRow)
+	wordByWordButton, err := newIconButton(ui.IconWordByWordOff, "Word-by-word rendering: off (click to enable)")
 	if err != nil {
-		return nil, err
-	}
-	wordByWordButton.SetFont(buttonFont)
-	_ = wordByWordButton.SetText("W×W: Off")
-	if err := wordByWordButton.SetMinMaxSize(walk.Size{Width: 86, Height: 34}, walk.Size{Width: 16777215, Height: 34}); err != nil {
 		return nil, err
 	}
 
-	clearButton, err := walk.NewPushButton(buttonRow)
+	focusButton, err := newIconButton(ui.IconEnterFocus, "Enter focus mode (Esc to exit)")
 	if err != nil {
-		return nil, err
-	}
-	clearButton.SetFont(buttonFont)
-	_ = clearButton.SetText("Clear")
-	if err := clearButton.SetMinMaxSize(walk.Size{Width: 68, Height: 34}, walk.Size{Width: 16777215, Height: 34}); err != nil {
 		return nil, err
 	}
 
-	focusButton, err := walk.NewPushButton(buttonRow)
-	if err != nil {
-		return nil, err
+	// Visual separator before destructive / terminal actions.
+	if sep, err := walk.NewVSeparator(buttonRow); err == nil {
+		_ = sep.SetMinMaxSize(walk.Size{Width: 1, Height: 24}, walk.Size{Width: 1, Height: 24})
 	}
-	focusButton.SetFont(buttonFont)
-	_ = focusButton.SetText("Focus")
-	if err := focusButton.SetMinMaxSize(walk.Size{Width: 72, Height: 34}, walk.Size{Width: 16777215, Height: 34}); err != nil {
+
+	clearButton, err := newIconButton(ui.IconClear, "Clear captions")
+	if err != nil {
 		return nil, err
 	}
 
-	exitButton, err := walk.NewPushButton(buttonRow)
+	exitButton, err := newIconButton(ui.IconClose, "Exit Live Translator")
 	if err != nil {
-		return nil, err
-	}
-	exitButton.SetFont(buttonFont)
-	_ = exitButton.SetText("Exit")
-	if err := exitButton.SetMinMaxSize(walk.Size{Width: 68, Height: 34}, walk.Size{Width: 16777215, Height: 34}); err != nil {
 		return nil, err
 	}
 	ui.ApplyNativeDarkTheme(
@@ -1054,15 +1042,27 @@ func (w *Window) applyPresentation() error {
 
 func (w *Window) updateActionButtons() {
 	if w.settingsVisible {
-		_ = w.settings.SetText("Hide Settings")
+		_ = w.settings.SetText(ui.IconChevronLeft)
+		_ = w.settings.SetToolTipText("Hide settings")
 	} else {
-		_ = w.settings.SetText("Settings")
+		_ = w.settings.SetText(ui.IconSettings)
+		_ = w.settings.SetToolTipText("Settings")
 	}
 
 	if w.alwaysOnTopEnabled {
-		_ = w.alwaysOnTop.SetText("On Top: On")
+		_ = w.alwaysOnTop.SetText(ui.IconPinned)
+		_ = w.alwaysOnTop.SetToolTipText("Always on top: on (click to disable)")
 	} else {
-		_ = w.alwaysOnTop.SetText("On Top: Off")
+		_ = w.alwaysOnTop.SetText(ui.IconUnpin)
+		_ = w.alwaysOnTop.SetToolTipText("Always on top: off (click to enable)")
+	}
+
+	if w.focusMode {
+		_ = w.focus.SetText(ui.IconExitFocus)
+		_ = w.focus.SetToolTipText("Exit focus mode (Esc)")
+	} else {
+		_ = w.focus.SetText(ui.IconEnterFocus)
+		_ = w.focus.SetToolTipText("Enter focus mode (Esc to exit)")
 	}
 
 	w.updateWordByWordButton(w.wordByWordEnabled)
@@ -1071,9 +1071,11 @@ func (w *Window) updateActionButtons() {
 func (w *Window) updateWordByWordButton(enabled bool) {
 	w.wordByWordEnabled = enabled
 	if enabled {
-		_ = w.wordByWord.SetText("W×W: On")
+		_ = w.wordByWord.SetText(ui.IconWordByWordOn)
+		_ = w.wordByWord.SetToolTipText("Word-by-word rendering: on (click to disable)")
 	} else {
-		_ = w.wordByWord.SetText("W×W: Off")
+		_ = w.wordByWord.SetText(ui.IconWordByWordOff)
+		_ = w.wordByWord.SetToolTipText("Word-by-word rendering: off (click to enable)")
 	}
 }
 
