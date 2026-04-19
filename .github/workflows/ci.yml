@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Build, vet, test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+          cache: true
+
+      - name: Go module tidy check
+        shell: pwsh
+        run: |
+          go mod download
+          go mod verify
+
+      - name: go vet
+        shell: pwsh
+        run: go vet ./...
+
+      - name: go build
+        shell: pwsh
+        run: go build ./...
+
+      - name: go test
+        shell: pwsh
+        run: go test -race -count=1 ./...
+
+  lint:
+    name: Static analysis
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+          cache: true
+
+      - name: Install staticcheck
+        shell: pwsh
+        run: go install honnef.co/go/tools/cmd/staticcheck@latest
+
+      - name: staticcheck
+        shell: pwsh
+        run: staticcheck ./...
+
+  vuln:
+    name: govulncheck
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+          cache: true
+
+      - name: Install govulncheck
+        shell: pwsh
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: govulncheck
+        shell: pwsh
+        run: govulncheck ./...
