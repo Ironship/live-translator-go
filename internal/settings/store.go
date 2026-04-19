@@ -107,7 +107,8 @@ func Save(values Values) error {
 		return err
 	}
 
-	return os.WriteFile(path, data, 0644)
+	// 0600: settings file may contain provider API keys; restrict to the current user.
+	return os.WriteFile(path, data, 0600)
 }
 
 func ResolvePath() (string, error) {
