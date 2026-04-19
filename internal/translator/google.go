@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 type GoogleClient struct {
@@ -20,7 +21,7 @@ type GoogleClient struct {
 func NewGoogleClient(config Config) *GoogleClient {
 	return &GoogleClient{
 		config:     config,
-		httpClient: &http.Client{},
+		httpClient: &http.Client{Timeout: 60 * time.Second},
 	}
 }
 

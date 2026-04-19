@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 )
 
 type Config struct {
@@ -63,7 +64,7 @@ func NewChatCompletionsClient(config Config) *ChatCompletionsClient {
 
 	return &ChatCompletionsClient{
 		config:     config,
-		httpClient: &http.Client{},
+		httpClient: &http.Client{Timeout: 60 * time.Second},
 	}
 }
 

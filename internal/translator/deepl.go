@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 type DeepLClient struct {
@@ -29,7 +30,7 @@ func NewDeepLClient(config Config) *DeepLClient {
 	}
 	return &DeepLClient{
 		config:     config,
-		httpClient: &http.Client{},
+		httpClient: &http.Client{Timeout: 60 * time.Second},
 	}
 }
 
