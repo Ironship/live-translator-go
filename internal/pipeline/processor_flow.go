@@ -106,10 +106,10 @@ func (p *Processor) computeSnapshotOutcome(source string, value string, canceled
 		if source == p.lastInput {
 			p.retryCount = 0
 		}
-		
+
 		outputChunks, outputRemainder := consumeSentenceChunks(outputValue)
 		sourceChunks, sourceRemainder := consumeSentenceChunks(source)
-		
+
 		if sourceRemainder == "" && outputRemainder != "" {
 			outputChunks = append(outputChunks, outputRemainder)
 			outputRemainder = ""

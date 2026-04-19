@@ -151,4 +151,3 @@ func TestPreviewScrollDurationIsCapped(t *testing.T) {
 		t.Fatalf("expected capped duration, got %s", duration)
 	}
 }
-
