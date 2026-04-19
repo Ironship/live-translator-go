@@ -53,6 +53,7 @@ type settingsPanel struct {
 	clickThroughBox   *walk.CheckBox
 	wordByWordBox     *walk.CheckBox
 	showOriginalBox   *walk.CheckBox
+	streamingBox      *walk.CheckBox
 	languageBox       *walk.ComboBox
 	statusLabel       *walk.Label
 	selectedProvider  string
@@ -306,6 +307,18 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 		return nil, err
 	}
 
+	panel.streamingBox, err = walk.NewCheckBox(translationGroup)
+	if err != nil {
+		return nil, err
+	}
+	if sectionBrush != nil {
+		panel.streamingBox.SetBackground(sectionBrush)
+	}
+	if bodyFont != nil {
+		panel.streamingBox.SetFont(bodyFont)
+	}
+	_ = panel.streamingBox.SetText("Stream translations incrementally (Ollama / LM Studio only)")
+
 	languagesGroup, err := newSettingsSection(translationPage, "Languages", sectionBrush, headingFont, bodyFont)
 	if err != nil {
 		return nil, err
@@ -547,6 +560,7 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 		panel.clickThroughBox,
 		panel.wordByWordBox,
 		panel.showOriginalBox,
+		panel.streamingBox,
 		applyButton,
 		testButton,
 		cancelButton,
@@ -624,6 +638,7 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 			panel.wordByWordBox.Checked(),
 			panel.showOriginalBox.Checked(),
 			panel.selectedLanguageCode(),
+			panel.streamingBox.Checked(),
 		)
 		if validationMessage != "" {
 			panel.showError(validationMessage)
@@ -736,6 +751,9 @@ func (p *settingsPanel) Load(values settings.Values) {
 	if p.showOriginalBox != nil {
 		p.showOriginalBox.SetChecked(values.ShowOriginal)
 	}
+	if p.streamingBox != nil {
+		p.streamingBox.SetChecked(values.StreamingEnabled)
+	}
 	if p.languageBox != nil {
 		idx := 0
 		if i18n.Normalize(values.UILanguage) == i18n.LangPL {
@@ -768,6 +786,9 @@ func (p *settingsPanel) updateProviderRows(provider string) {
 	}
 	if p.glossaryNote != nil {
 		p.glossaryNote.SetVisible(usesGlossary)
+	}
+	if p.streamingBox != nil {
+		p.streamingBox.SetVisible(translator.SupportsStreaming(normalized))
 	}
 }
 
@@ -1217,6 +1238,7 @@ func collectPanelSettings(
 	wordByWord bool,
 	showOriginal bool,
 	uiLanguage string,
+	streamingEnabled bool,
 ) (settings.Values, string) {
 	updated := base
 	updated.Provider = translator.NormalizeProvider(provider)
@@ -1236,6 +1258,7 @@ func collectPanelSettings(
 	updated.WordByWord = wordByWord
 	updated.ShowOriginal = showOriginal
 	updated.UILanguage = i18n.Normalize(uiLanguage)
+	updated.StreamingEnabled = streamingEnabled
 
 	parsedPollMs, err := strconv.Atoi(strings.TrimSpace(pollMs))
 	if err != nil || parsedPollMs <= 0 {

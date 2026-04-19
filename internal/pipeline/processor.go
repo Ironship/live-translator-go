@@ -15,6 +15,13 @@ type Translator interface {
 	Translate(ctx context.Context, input string) (string, error)
 }
 
+// StreamingTranslator is an optional capability. Translators that implement it
+// can emit partial translations via onPartial as tokens arrive; the returned
+// string is the final, committed translation.
+type StreamingTranslator interface {
+	TranslateStream(ctx context.Context, input string, onPartial func(partial string)) (string, error)
+}
+
 type Output interface {
 	PushCaption(finalChunks []string, partialChunk string)
 }
@@ -31,6 +38,11 @@ type Config struct {
 	// emitted alongside the matching source chunk so the overlay renders the
 	// original caption interleaved with its translation.
 	ShowOriginal bool
+	// StreamingEnabled opts in to incremental translation output when the
+	// configured translator implements StreamingTranslator. Partial deltas
+	// are surfaced to the Output as a partialChunk and are overwritten on
+	// each new delta until the final commit.
+	StreamingEnabled bool
 }
 
 type Processor struct {

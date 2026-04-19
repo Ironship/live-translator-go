@@ -122,6 +122,17 @@ func UsesGlossary(provider string) bool {
 	}
 }
 
+// SupportsStreaming reports whether the provider can emit partial translations
+// as tokens arrive. Only chat-completions backends implement streaming today.
+func SupportsStreaming(provider string) bool {
+	switch NormalizeProvider(provider) {
+	case ProviderOllama, ProviderLMStudio:
+		return true
+	default:
+		return false
+	}
+}
+
 func IsConfigured(provider string, apiKey string, model string) bool {
 	provider = NormalizeProvider(provider)
 	if RequiresAPIKey(provider) && strings.TrimSpace(apiKey) == "" {

@@ -20,6 +20,7 @@ type Config struct {
 	RequestTimeout   time.Duration
 	RequestFrequency time.Duration
 	ShowOriginal     bool
+	StreamingEnabled bool
 }
 
 func LoadSettings() (settings.Values, error) {
@@ -73,6 +74,7 @@ func ConfigFromSettings(values settings.Values) Config {
 		RequestTimeout:   time.Duration(values.RequestTimeoutMs) * time.Millisecond,
 		RequestFrequency: requestFrequency,
 		ShowOriginal:     values.ShowOriginal,
+		StreamingEnabled: values.StreamingEnabled && translator.SupportsStreaming(values.Provider),
 	}
 }
 

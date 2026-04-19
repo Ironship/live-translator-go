@@ -58,7 +58,29 @@ func (p *Processor) startNextLocked() {
 func (p *Processor) translateSnapshot(source string, requestCtx context.Context, release context.CancelFunc) {
 	defer release()
 
-	translated, err := p.translator.Translate(requestCtx, source)
+	var (
+		translated string
+		err        error
+	)
+
+	if p.config.StreamingEnabled {
+		if streamer, ok := p.translator.(StreamingTranslator); ok {
+			translated, err = streamer.TranslateStream(requestCtx, source, func(partial string) {
+				normalized := textutil.NormalizeCaptionSnapshot(partial)
+				if normalized == "" {
+					return
+				}
+				// Emit the incremental translation as a partial chunk so the
+				// overlay can render "typing" output without committing it.
+				p.output.PushCaption(nil, normalized)
+			})
+		} else {
+			translated, err = p.translator.Translate(requestCtx, source)
+		}
+	} else {
+		translated, err = p.translator.Translate(requestCtx, source)
+	}
+
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			p.finishSnapshot(source, "", true, false)

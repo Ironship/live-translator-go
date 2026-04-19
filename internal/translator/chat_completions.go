@@ -3,6 +3,7 @@
 package translator
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -33,6 +34,7 @@ type chatCompletionRequest struct {
 	Model       string                `json:"model"`
 	Messages    []chatCompletionEntry `json:"messages"`
 	Temperature float64               `json:"temperature"`
+	Stream      bool                  `json:"stream,omitempty"`
 }
 
 type chatCompletionEntry struct {
@@ -132,6 +134,114 @@ func (c *ChatCompletionsClient) Translate(ctx context.Context, input string) (st
 		return "", fmt.Errorf("translator response contained empty content")
 	}
 
+	return translated, nil
+}
+
+// TranslateStream issues a streaming chat-completions request and invokes
+// onPartial for each incremental delta. The full accumulated translation is
+// returned once the stream finishes. onPartial may be nil, in which case the
+// method still drains the stream and returns the final text.
+func (c *ChatCompletionsClient) TranslateStream(ctx context.Context, input string, onPartial func(partial string)) (string, error) {
+	trimmedInput := strings.TrimSpace(input)
+	if trimmedInput == "" {
+		return "", nil
+	}
+
+	if RequiresAPIKey(c.config.Provider) && strings.TrimSpace(c.config.APIKey) == "" {
+		return "", fmt.Errorf("API key is empty for provider %s", c.config.Provider)
+	}
+	if UsesModel(c.config.Provider) && strings.TrimSpace(c.config.Model) == "" {
+		return "", fmt.Errorf("model is empty for provider %s", c.config.Provider)
+	}
+
+	payload := chatCompletionRequest{
+		Model: c.config.Model,
+		Messages: []chatCompletionEntry{
+			{Role: "system", Content: c.systemPrompt()},
+			{Role: "user", Content: trimmedInput},
+		},
+		Temperature: 0.2,
+		Stream:      true,
+	}
+	requestBody, err := json.Marshal(payload)
+	if err != nil {
+		return "", fmt.Errorf("marshal translator stream request: %w", err)
+	}
+
+	endpoint := strings.TrimRight(c.config.BaseURL, "/") + "/chat/completions"
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(requestBody))
+	if err != nil {
+		return "", fmt.Errorf("create translator stream request: %w", err)
+	}
+	if strings.TrimSpace(c.config.APIKey) != "" {
+		request.Header.Set("Authorization", "Bearer "+c.config.APIKey)
+	}
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Accept", "text/event-stream")
+
+	response, err := c.httpClient.Do(request)
+	if err != nil {
+		return "", fmt.Errorf("call translator stream API: %w", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		body, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
+		return "", fmt.Errorf("translator stream API returned %s: %s", response.Status, strings.TrimSpace(string(body)))
+	}
+
+	reader := bufio.NewReaderSize(response.Body, 8192)
+	var builder strings.Builder
+	for {
+		line, err := reader.ReadString('\n')
+		if len(line) > 0 {
+			line = strings.TrimRight(line, "\r\n")
+			if strings.HasPrefix(line, "data:") {
+				data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+				if data == "" || data == "[DONE]" {
+					if data == "[DONE]" {
+						break
+					}
+				} else {
+					var frame struct {
+						Choices []struct {
+							Delta struct {
+								Content string `json:"content"`
+							} `json:"delta"`
+							Message struct {
+								Content string `json:"content"`
+							} `json:"message"`
+						} `json:"choices"`
+					}
+					if jsonErr := json.Unmarshal([]byte(data), &frame); jsonErr == nil && len(frame.Choices) > 0 {
+						delta := frame.Choices[0].Delta.Content
+						if delta == "" {
+							// Some servers (notably Ollama) omit the delta and
+							// include cumulative content inside message.content.
+							delta = frame.Choices[0].Message.Content
+						}
+						if delta != "" {
+							builder.WriteString(delta)
+							if onPartial != nil {
+								onPartial(builder.String())
+							}
+						}
+					}
+				}
+			}
+		}
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return "", fmt.Errorf("read translator stream: %w", err)
+		}
+	}
+
+	translated := strings.TrimSpace(builder.String())
+	if translated == "" {
+		return "", fmt.Errorf("translator stream contained no content")
+	}
 	return translated, nil
 }
 

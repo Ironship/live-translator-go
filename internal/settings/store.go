@@ -43,6 +43,7 @@ type Values struct {
 	ClickThrough        bool   `json:"clickThrough"`
 	WordByWord          bool   `json:"wordByWord"`
 	ShowOriginal        bool   `json:"showOriginal"`
+	StreamingEnabled    bool   `json:"streamingEnabled"`
 	UILanguage          string `json:"uiLanguage,omitempty"`
 
 	// Persisted main-window placement. Zero values mean "use default layout".
