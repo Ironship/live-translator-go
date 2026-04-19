@@ -117,6 +117,12 @@ func (p *Processor) computeSnapshotOutcome(source string, value string, canceled
 
 		if len(outputChunks) > 0 {
 			p.committedSrc = append(p.committedSrc, sourceChunks...)
+			// Cap committedSrc to prevent unbounded growth during long sessions.
+			// Anchor matching only needs recent context; older entries cannot
+			// realistically overlap with the current Live Captions buffer.
+			if len(p.committedSrc) > maxCommittedSrcEntries {
+				p.committedSrc = append([]string(nil), p.committedSrc[len(p.committedSrc)-maxCommittedSrcEntries:]...)
+			}
 		}
 
 		chunks = outputChunks
