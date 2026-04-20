@@ -10,6 +10,7 @@ import (
 
 	"live-translator-go/internal/i18n"
 	"live-translator-go/internal/ui"
+	"live-translator-go/internal/ui/appicon"
 
 	"github.com/lxn/walk"
 	"github.com/lxn/win"
@@ -130,6 +131,14 @@ func New(config Config) (*Window, error) {
 	}
 	if err := mainWindow.SetTitle("Live Translator"); err != nil {
 		return nil, err
+	}
+	// Apply the app icon to the window / taskbar. The shell icon on the .exe
+	// itself is injected via rsrc at build time.
+	if img, err := appicon.Image(); err == nil {
+		if icon, err := walk.NewIconFromImageForDPI(img, mainWindow.DPI()); err == nil {
+			mainWindow.AddDisposable(icon)
+			_ = mainWindow.SetIcon(icon)
+		}
 	}
 	if err := mainWindow.SetMinMaxSize(walk.Size{Width: 720, Height: 200}, walk.Size{Width: 2200, Height: 1400}); err != nil {
 		return nil, err

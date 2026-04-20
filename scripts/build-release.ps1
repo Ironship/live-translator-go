@@ -8,6 +8,7 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $mainPackageDir = Join-Path $repoRoot 'cmd\live-translator-go'
 $manifestPath = Join-Path $repoRoot 'live-translator-go.exe.manifest'
+$iconPath = Join-Path $repoRoot 'assets\app.ico'
 $sysoPath = Join-Path $mainPackageDir 'zz_manifest_windows_amd64.syso'
 $outputRoot = Join-Path $repoRoot $OutputDir
 $outputPath = Join-Path $outputRoot $BinaryName
@@ -44,9 +45,17 @@ try {
         Remove-Item $sysoPath -Force
     }
 
-    & $rsrcExe -arch amd64 -manifest $manifestPath -o $sysoPath
+    $rsrcArgs = @('-arch', 'amd64', '-manifest', $manifestPath)
+    if (Test-Path $iconPath) {
+        $rsrcArgs += @('-ico', $iconPath)
+    } else {
+        Write-Warning "Icon not found at $iconPath; exe will have no embedded shell icon. Run scripts\generate-icon.ps1."
+    }
+    $rsrcArgs += @('-o', $sysoPath)
+
+    & $rsrcExe @rsrcArgs
     if ($LASTEXITCODE -ne 0) {
-        throw 'Failed to generate embedded manifest resource.'
+        throw 'Failed to generate embedded manifest/icon resource.'
     }
 
     $env:CGO_ENABLED = '0'
