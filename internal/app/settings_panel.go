@@ -311,9 +311,6 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	if err != nil {
 		return nil, err
 	}
-	if sectionBrush != nil {
-		panel.streamingBox.SetBackground(sectionBrush)
-	}
 	if bodyFont != nil {
 		panel.streamingBox.SetFont(bodyFont)
 	}
@@ -383,9 +380,6 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	if err != nil {
 		return nil, err
 	}
-	if sectionBrush != nil {
-		panel.wordByWordBox.SetBackground(sectionBrush)
-	}
 	if bodyFont != nil {
 		panel.wordByWordBox.SetFont(bodyFont)
 	}
@@ -417,9 +411,6 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	if err != nil {
 		return nil, err
 	}
-	if sectionBrush != nil {
-		panel.alternateLinesBox.SetBackground(sectionBrush)
-	}
 	if bodyFont != nil {
 		panel.alternateLinesBox.SetFont(bodyFont)
 	}
@@ -427,9 +418,6 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	panel.showOriginalBox, err = walk.NewCheckBox(previewGroup)
 	if err != nil {
 		return nil, err
-	}
-	if sectionBrush != nil {
-		panel.showOriginalBox.SetBackground(sectionBrush)
 	}
 	if bodyFont != nil {
 		panel.showOriginalBox.SetFont(bodyFont)
@@ -443,9 +431,6 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	if err != nil {
 		return nil, err
 	}
-	if sectionBrush != nil {
-		panel.alwaysOnTopBox.SetBackground(sectionBrush)
-	}
 	if bodyFont != nil {
 		panel.alwaysOnTopBox.SetFont(bodyFont)
 	}
@@ -453,9 +438,6 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	panel.clickThroughBox, err = walk.NewCheckBox(previewGroup)
 	if err != nil {
 		return nil, err
-	}
-	if sectionBrush != nil {
-		panel.clickThroughBox.SetBackground(sectionBrush)
 	}
 	if bodyFont != nil {
 		panel.clickThroughBox.SetFont(bodyFont)
