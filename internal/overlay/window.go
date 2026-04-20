@@ -66,6 +66,7 @@ type Window struct {
 	openCaptions       *walk.PushButton
 	speechPanel        *walk.PushButton
 	settings           *walk.PushButton
+	languageButton     *walk.PushButton
 	alwaysOnTop        *walk.PushButton
 	wordByWord         *walk.PushButton
 	clearButton        *walk.PushButton
@@ -359,6 +360,11 @@ func New(config Config) (*Window, error) {
 		return nil, err
 	}
 
+	languageButton, err := newIconButton(ui.IconLanguage, languageButtonTooltip(config.Language))
+	if err != nil {
+		return nil, err
+	}
+
 	// Visual separator between primary actions and toggles.
 	if sep, err := walk.NewVSeparator(buttonRow); err == nil {
 		_ = sep.SetMinMaxSize(walk.Size{Width: 1, Height: 24}, walk.Size{Width: 1, Height: 24})
@@ -397,6 +403,7 @@ func New(config Config) (*Window, error) {
 		openCaptionsButton,
 		speechPanelButton,
 		settingsButton,
+		languageButton,
 		alwaysOnTopButton,
 		wordByWordButton,
 		clearButton,
@@ -603,6 +610,7 @@ func New(config Config) (*Window, error) {
 		openCaptions:    openCaptionsButton,
 		speechPanel:     speechPanelButton,
 		settings:        settingsButton,
+		languageButton:  languageButton,
 		alwaysOnTop:     alwaysOnTopButton,
 		wordByWord:      wordByWordButton,
 		clearButton:     clearButton,
@@ -761,6 +769,41 @@ func (w *Window) OnDisposing(handler func()) {
 
 func (w *Window) OnSettings(handler func()) {
 	w.settings.Clicked().Attach(handler)
+}
+
+func (w *Window) OnCycleLanguage(handler func()) {
+	w.languageButton.Clicked().Attach(handler)
+}
+
+// SetLanguage updates the overlay UI locale in-place: all toolbar tooltips
+// that go through i18n.T are re-rendered with the new language. The caller
+// is responsible for persisting the value to the settings store.
+func (w *Window) SetLanguage(lang string) {
+	if w.mainWindow.IsDisposed() {
+		return
+	}
+	w.mainWindow.Synchronize(func() {
+		if w.mainWindow.IsDisposed() {
+			return
+		}
+		w.language = i18n.Normalize(lang)
+		_ = w.openCaptions.SetToolTipText(i18n.T(w.language, "toolbar.start"))
+		_ = w.speechPanel.SetToolTipText(i18n.T(w.language, "toolbar.openPanel"))
+		_ = w.clearButton.SetToolTipText(i18n.T(w.language, "toolbar.clear"))
+		_ = w.exit.SetToolTipText(i18n.T(w.language, "toolbar.exit"))
+		if w.languageButton != nil {
+			_ = w.languageButton.SetToolTipText(languageButtonTooltip(w.language))
+		}
+		w.updateActionButtons()
+	})
+}
+
+// languageButtonTooltip renders the tooltip that shows the current locale and
+// hints at the next one in the cycle (e.g. "Interface language: English -> Polski").
+func languageButtonTooltip(lang string) string {
+	current := i18n.Normalize(lang)
+	next := i18n.NextLanguage(current)
+	return i18n.T(current, "toolbar.language") + ": " + i18n.DisplayName(current) + " -> " + i18n.DisplayName(next)
 }
 
 func (w *Window) OnOpenLiveCaptions(handler func()) {

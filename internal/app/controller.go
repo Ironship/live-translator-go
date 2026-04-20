@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"live-translator-go/internal/captions"
+	"live-translator-go/internal/i18n"
 	"live-translator-go/internal/overlay"
 	"live-translator-go/internal/settings"
 	"live-translator-go/internal/translator"
@@ -95,6 +96,31 @@ func (c *Controller) ToggleFocusMode() {
 		c.overlay.SetSettingsVisible(false)
 	}
 	_ = c.overlay.ToggleFocusMode()
+}
+
+// CycleUILanguage advances the UI locale to the next supported language
+// (English -> Polski -> Deutsch -> English), persists it, and asks the
+// overlay to refresh its tooltips. The settings panel picks up the new
+// value the next time it is opened.
+func (c *Controller) CycleUILanguage() {
+	current := c.CurrentSettings()
+	next := current
+	next.UILanguage = i18n.NextLanguage(current.UILanguage)
+
+	if err := settings.Save(next); err != nil {
+		c.overlay.SetStatus("Unable to save interface language")
+		return
+	}
+
+	c.mu.Lock()
+	c.values = settings.Sanitize(next)
+	c.mu.Unlock()
+
+	c.overlay.SetLanguage(next.UILanguage)
+	if c.panel != nil {
+		c.panel.Load(c.CurrentSettings())
+	}
+	c.overlay.SetStatus(i18n.T(next.UILanguage, "toolbar.language") + ": " + i18n.DisplayName(next.UILanguage))
 }
 
 func (c *Controller) ToggleWordByWord() {

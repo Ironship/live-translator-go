@@ -9,22 +9,25 @@ import "strings"
 const (
 	LangEN = "en"
 	LangPL = "pl"
+	LangDE = "de"
 )
 
 // DefaultLanguage is used when no language is explicitly configured.
 const DefaultLanguage = LangEN
 
 // SupportedLanguages lists the locales the UI can render, in the order they
-// should appear in language pickers.
+// should appear in language pickers and in the toolbar cycle button.
 func SupportedLanguages() []string {
-	return []string{LangEN, LangPL}
+	return []string{LangEN, LangPL, LangDE}
 }
 
 // DisplayName returns the user-facing label for a language code.
 func DisplayName(lang string) string {
-	switch strings.ToLower(strings.TrimSpace(lang)) {
+	switch Normalize(lang) {
 	case LangPL:
 		return "Polski"
+	case LangDE:
+		return "Deutsch"
 	default:
 		return "English"
 	}
@@ -36,11 +39,27 @@ func Normalize(lang string) string {
 	switch strings.ToLower(strings.TrimSpace(lang)) {
 	case LangPL:
 		return LangPL
+	case LangDE:
+		return LangDE
 	case LangEN, "":
 		return LangEN
 	default:
 		return DefaultLanguage
 	}
+}
+
+// NextLanguage returns the language that should be selected after the given
+// one when the user clicks the toolbar cycle button. The order matches
+// SupportedLanguages and wraps around at the end.
+func NextLanguage(lang string) string {
+	langs := SupportedLanguages()
+	current := Normalize(lang)
+	for i, candidate := range langs {
+		if candidate == current {
+			return langs[(i+1)%len(langs)]
+		}
+	}
+	return langs[0]
 }
 
 // T returns the translation for key in the requested language, falling back
@@ -68,6 +87,7 @@ var translations = map[string]map[string]string{
 		"toolbar.start":         "Start / restart Live Captions",
 		"toolbar.openPanel":     "Open Windows speech recognition panel",
 		"toolbar.settings":      "Settings",
+		"toolbar.language":      "Interface language",
 		"toolbar.alwaysOnTop":   "Always on top",
 		"toolbar.wordByWord":    "Word-by-word rendering",
 		"toolbar.focus":         "Enter focus mode",
@@ -88,6 +108,7 @@ var translations = map[string]map[string]string{
 		"toolbar.start":         "Uruchom / zrestartuj Live Captions",
 		"toolbar.openPanel":     "Otworz panel rozpoznawania mowy Windows",
 		"toolbar.settings":      "Ustawienia",
+		"toolbar.language":      "Jezyk interfejsu",
 		"toolbar.alwaysOnTop":   "Zawsze na wierzchu",
 		"toolbar.wordByWord":    "Renderowanie slowo po slowie",
 		"toolbar.focus":         "Wejdz w tryb skupienia",
@@ -103,5 +124,26 @@ var translations = map[string]map[string]string{
 		"footer.close":          "Zamknij",
 		"settings.language":     "Jezyk interfejsu",
 		"settings.languageNote": "Zmiana zostanie zastosowana przy nastepnym otwarciu ustawien.",
+	},
+	LangDE: {
+		"toolbar.start":         "Live Captions starten / neu starten",
+		"toolbar.openPanel":     "Windows-Spracherkennung oeffnen",
+		"toolbar.settings":      "Einstellungen",
+		"toolbar.language":      "Oberflaechensprache",
+		"toolbar.alwaysOnTop":   "Immer im Vordergrund",
+		"toolbar.wordByWord":    "Wort-fuer-Wort-Darstellung",
+		"toolbar.focus":         "Fokusmodus aktivieren",
+		"toolbar.clear":         "Untertitel loeschen",
+		"toolbar.exit":          "Live Translator beenden",
+		"toolbar.onSuffix":      ": ein",
+		"toolbar.offSuffix":     ": aus",
+		"tab.translation":       "Uebersetzung",
+		"tab.captions":          "Live Captions",
+		"tab.appearance":        "Darstellung",
+		"footer.save":           "Speichern",
+		"footer.test":           "Verbindung testen",
+		"footer.close":          "Schliessen",
+		"settings.language":     "Oberflaechensprache",
+		"settings.languageNote": "Aenderungen werden beim naechsten Oeffnen der Einstellungen wirksam.",
 	},
 }

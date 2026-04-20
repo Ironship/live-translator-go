@@ -42,6 +42,9 @@ func Run() error {
 	window.OnSettings(func() {
 		controller.ToggleSettings()
 	})
+	window.OnCycleLanguage(func() {
+		controller.CycleUILanguage()
+	})
 	window.OnOpenLiveCaptions(func() {
 		controller.OpenLiveCaptions()
 	})

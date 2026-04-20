@@ -160,7 +160,10 @@ func Sanitize(values Values) Values {
 	values.TranslationContext = strings.TrimSpace(values.TranslationContext)
 	values.Glossary = strings.TrimSpace(values.Glossary)
 	values.UILanguage = strings.ToLower(strings.TrimSpace(values.UILanguage))
-	if values.UILanguage != "pl" && values.UILanguage != "en" {
+	switch values.UILanguage {
+	case "en", "pl", "de":
+		// supported
+	default:
 		values.UILanguage = ""
 	}
 	values.SourceLanguage = defaultString(values.SourceLanguage, defaults.SourceLanguage)

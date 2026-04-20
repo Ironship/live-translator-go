@@ -427,10 +427,18 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	if err != nil {
 		return nil, err
 	}
-	languageOptions := []string{i18n.DisplayName(i18n.LangEN), i18n.DisplayName(i18n.LangPL)}
+	languageCodes := i18n.SupportedLanguages()
+	languageOptions := make([]string, len(languageCodes))
+	for i, code := range languageCodes {
+		languageOptions[i] = i18n.DisplayName(code)
+	}
 	currentLanguageIdx := 0
-	if i18n.Normalize(current.UILanguage) == i18n.LangPL {
-		currentLanguageIdx = 1
+	currentLangCode := i18n.Normalize(current.UILanguage)
+	for i, code := range languageCodes {
+		if code == currentLangCode {
+			currentLanguageIdx = i
+			break
+		}
 	}
 	panel.languageBox, err = addSettingsComboBoxRow(languageGroup, "Language", languageOptions, languageOptions[currentLanguageIdx], inputBrush, sectionBrush)
 	if err != nil {
@@ -713,9 +721,14 @@ func (p *settingsPanel) Load(values settings.Values) {
 		p.streamingBox.SetChecked(values.StreamingEnabled)
 	}
 	if p.languageBox != nil {
+		codes := i18n.SupportedLanguages()
 		idx := 0
-		if i18n.Normalize(values.UILanguage) == i18n.LangPL {
-			idx = 1
+		currentCode := i18n.Normalize(values.UILanguage)
+		for i, code := range codes {
+			if code == currentCode {
+				idx = i
+				break
+			}
 		}
 		_ = p.languageBox.SetCurrentIndex(idx)
 	}
@@ -769,10 +782,12 @@ func (p *settingsPanel) selectedLanguageCode() string {
 	if p == nil || p.languageBox == nil {
 		return i18n.DefaultLanguage
 	}
-	if p.languageBox.CurrentIndex() == 1 {
-		return i18n.LangPL
+	codes := i18n.SupportedLanguages()
+	idx := p.languageBox.CurrentIndex()
+	if idx >= 0 && idx < len(codes) {
+		return codes[idx]
 	}
-	return i18n.LangEN
+	return i18n.DefaultLanguage
 }
 
 func (p *settingsPanel) updateProviderButtons(provider string) {

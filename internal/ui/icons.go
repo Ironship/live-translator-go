@@ -16,6 +16,7 @@ const (
 	IconStop          = "\uE71A" // Stop
 	IconMicrophone    = "\uE720" // Microphone
 	IconSettings      = "\uE713" // Settings gear
+	IconLanguage      = "\uE909" // Globe / World — UI language cycle
 	IconChevronLeft   = "\uE76B" // Back (used for "Hide Settings")
 	IconPinned        = "\uE840" // Pinned (always-on-top enabled)
 	IconUnpin         = "\uE77A" // Unpin (always-on-top disabled)
