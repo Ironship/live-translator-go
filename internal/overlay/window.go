@@ -679,7 +679,8 @@ func New(config Config) (*Window, error) {
 		if window.mainWindow.IsDisposed() || window.applyingBounds {
 			return
 		}
-		window.storeBounds(window.mainWindow.BoundsPixels())
+		// Store bounds in 96-dpi units so they survive DPI changes between sessions.
+		window.storeBounds(window.mainWindow.Bounds())
 	})
 
 	if err := window.applyConfig(config); err != nil {
@@ -689,6 +690,8 @@ func New(config Config) (*Window, error) {
 	// Restore persisted window placement, if any. Must happen after applyConfig
 	// because applyConfig may resize the window based on state-specific defaults.
 	if config.WindowWidth > 0 && config.WindowHeight > 0 {
+		// Persisted bounds are stored in 96-dpi units; SetBounds will scale them to
+		// the current monitor DPI.
 		saved := walk.Rectangle{
 			X:      config.WindowX,
 			Y:      config.WindowY,
@@ -698,7 +701,7 @@ func New(config Config) (*Window, error) {
 		window.expandedBounds = saved
 		window.collapsedBounds = saved
 		window.applyingBounds = true
-		if err := window.mainWindow.SetBoundsPixels(saved); err == nil {
+		if err := window.mainWindow.SetBounds(saved); err == nil {
 			window.storeBounds(saved)
 		}
 		window.applyingBounds = false
@@ -717,8 +720,9 @@ func (w *Window) PersistedBounds() (x, y, width, height int) {
 		return b.X, b.Y, b.Width, b.Height
 	}
 	// Prefer live bounds when the window is still alive, but fall back to the
-	// last stored value if bounds are currently zero (e.g. minimised).
-	live := w.mainWindow.BoundsPixels()
+	// last stored value if bounds are currently zero (e.g. minimised). Bounds()
+	// returns 96-dpi units so saved values are DPI-independent.
+	live := w.mainWindow.Bounds()
 	if isStoredBounds(live) {
 		return live.X, live.Y, live.Width, live.Height
 	}
@@ -1017,7 +1021,8 @@ func (w *Window) applyConfig(config Config) error {
 	defer func() {
 		w.applyingBounds = false
 	}()
-	if err := w.mainWindow.SetBoundsPixels(bounds); err != nil {
+	// bounds is in 96-dpi units; SetBounds scales for the current monitor DPI.
+	if err := w.mainWindow.SetBounds(bounds); err != nil {
 		return err
 	}
 	w.storeBounds(bounds)
@@ -1164,9 +1169,16 @@ func withDefaults(config Config) Config {
 	return config
 }
 
-func boundsForState(config Config, settingsVisible bool, focusMode bool) walk.Rectangle {
-	screenWidth := int(win.GetSystemMetrics(win.SM_CXSCREEN))
-	screenHeight := int(win.GetSystemMetrics(win.SM_CYSCREEN))
+// boundsForState returns a window rectangle in 96-dpi units. Callers must feed
+// it through SetBounds (not SetBoundsPixels) so walk scales to the active DPI.
+func boundsForState(config Config, settingsVisible bool, focusMode bool, dpi int) walk.Rectangle {
+	if dpi <= 0 {
+		dpi = 96
+	}
+	// SM_CXSCREEN/CYSCREEN report the primary monitor in device pixels. Convert
+	// to 96-dpi units so we can compare with our logical width/height below.
+	screenWidth := walk.IntTo96DPI(int(win.GetSystemMetrics(win.SM_CXSCREEN)), dpi)
+	screenHeight := walk.IntTo96DPI(int(win.GetSystemMetrics(win.SM_CYSCREEN)), dpi)
 
 	width := 940
 	height := 252
@@ -1220,7 +1232,7 @@ func (w *Window) boundsForCurrentState(config Config) walk.Rectangle {
 		}
 	}
 
-	return boundsForState(config, w.settingsVisible, w.focusMode)
+	return boundsForState(config, w.settingsVisible, w.focusMode, w.mainWindow.DPI())
 }
 
 func (w *Window) storeBounds(bounds walk.Rectangle) {
