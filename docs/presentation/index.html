@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Live Translation Demo — Presentation</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<nav class="dots" aria-label="Slides">
+  <a href="#s1" data-label="Intro"></a>
+  <a href="#s2" data-label="AI paradox"></a>
+  <a href="#s3" data-label="Models improve"></a>
+  <a href="#s4" data-label="Fresh releases"></a>
+  <a href="#s5" data-label="The program"></a>
+  <a href="#s6" data-label="Main window"></a>
+  <a href="#s7" data-label="Translation settings"></a>
+  <a href="#s8" data-label="Captions"></a>
+  <a href="#s9" data-label="Appearance"></a>
+  <a href="#s10" data-label="Features"></a>
+  <a href="#s11" data-label="Takeaway"></a>
+  <a href="#s12" data-label="Thanks"></a>
+</nav>
+
+<main class="deck">
+
+  <section id="s1" class="slide slide-title">
+    <div class="content">
+      <p class="eyebrow">DevOps internal demo · 2026</p>
+      <h1>Live Translation Demo</h1>
+      <p class="subtitle">A tiny Windows overlay that turns any on-screen speech into real-time bilingual captions.</p>
+      <p class="hint">Scroll ↓ or press <kbd>Space</kbd> / <kbd>→</kbd></p>
+    </div>
+  </section>
+
+  <section id="s2" class="slide">
+    <div class="content">
+      <h2>AI is full of holes — and still eating the world</h2>
+      <ul class="big">
+        <li>Prompt injection, data exfiltration, supply-chain poisoning, jailbreaks — we ship patches weekly.</li>
+        <li>Despite that, adoption curves keep bending <em>upward</em>, not down.</li>
+        <li>Security debt is real, but so is the productivity multiplier — we can't opt out, we can only learn to use it safely.</li>
+      </ul>
+      <p class="aside">The honest position: <strong>treat AI like a powerful intern with a loud mouth</strong> — useful, but never unsupervised on critical paths.</p>
+    </div>
+  </section>
+
+  <section id="s3" class="slide split">
+    <div class="content">
+      <h2>The models keep getting better — fast</h2>
+      <ul>
+        <li>Most of this tool's Go code was drafted by <strong>Qwen 3.6-35B-A3B</strong>, running locally.</li>
+        <li>A 35B MoE model that fits on a single workstation now writes production-shaped code.</li>
+        <li>Two years ago this class of output required a frontier API. Today it runs on my desk, offline.</li>
+      </ul>
+    </div>
+    <div class="media">
+      <img src="img/coding.jpg" alt="Qwen coding benchmark screenshot" />
+      <p class="caption">Qwen 3 coding benchmarks — local MoE catching up to frontier.</p>
+    </div>
+  </section>
+
+  <section id="s4" class="slide">
+    <div class="content">
+      <h2>New drops, every other week</h2>
+      <div class="cards">
+        <div class="card">
+          <h3>Claude Opus 4.7</h3>
+          <p>Huge frontier model. Exceptional at long-context refactors, multi-file reasoning, and test authoring.</p>
+          <p class="tag">Use for: hard architectural work, tricky debugging.</p>
+        </div>
+        <div class="card">
+          <h3>Kimi K2.6</h3>
+          <p>A <em>small</em> model that keeps wrecking benchmarks. Cheap to serve, fast to iterate with, good enough for daily driver tasks.</p>
+          <p class="tag">Use for: glue code, CLI tools, internal utilities.</p>
+        </div>
+        <div class="card">
+          <h3>Qwen 3.6 / local MoE</h3>
+          <p>Runs offline. No data leaves the machine. Great for regulated environments.</p>
+          <p class="tag">Use for: air-gapped dev, sensitive codebases.</p>
+        </div>
+      </div>
+      <p class="aside">The cost of a "competent" model is collapsing. The question is no longer <em>if</em>, but <em>where</em> you let it help.</p>
+    </div>
+  </section>
+
+  <section id="s5" class="slide slide-title alt">
+    <div class="content">
+      <p class="eyebrow">Live demo</p>
+      <h1>So — what did I build with it?</h1>
+      <p class="subtitle">A real-time translation overlay for Windows. Written in Go. ~95% of the first draft came from a local model.</p>
+    </div>
+  </section>
+
+  <section id="s6" class="slide split">
+    <div class="content">
+      <h2>The overlay</h2>
+      <ul>
+        <li>Always-on-top transparent window, drag-to-move, remembers its position.</li>
+        <li>Streams partial translations as they arrive — no awkward waiting for a full sentence.</li>
+        <li>Bilingual mode: original + translation stacked, so you can sanity-check the model live.</li>
+      </ul>
+    </div>
+    <div class="media">
+      <img src="img/main-window.png" alt="Main overlay window" />
+      <p class="caption">Main overlay — compact, dark, unobtrusive.</p>
+    </div>
+  </section>
+
+  <section id="s7" class="slide split">
+    <div class="content">
+      <h2>Pick your translator</h2>
+      <ul>
+        <li><strong>Ollama</strong> / <strong>LM Studio</strong> — 100% local, zero cost, zero leakage.</li>
+        <li><strong>Google free</strong> — quick, no key.</li>
+        <li><strong>DeepL</strong> — best quality for EU languages, key-based.</li>
+        <li>Optional glossary + streaming chat-completions for tone control.</li>
+      </ul>
+    </div>
+    <div class="media">
+      <img src="img/settings-translation.png" alt="Translation settings" />
+      <p class="caption">Translation providers — swap in one click.</p>
+    </div>
+  </section>
+
+  <section id="s8" class="slide split">
+    <div class="content">
+      <h2>Captions tuned to the speaker</h2>
+      <ul>
+        <li>Source language hints, VAD sensitivity, silence thresholds.</li>
+        <li>Whisper tiers from <code>tiny</code> to <code>large-v3</code> — trade latency for accuracy.</li>
+        <li>Works on loopback audio — captures whatever plays through your speakers (Teams, browser, media players).</li>
+      </ul>
+    </div>
+    <div class="media">
+      <img src="img/settings-captions.png" alt="Captions settings" />
+      <p class="caption">Captions & ASR configuration.</p>
+    </div>
+  </section>
+
+  <section id="s9" class="slide split">
+    <div class="content">
+      <h2>Readable at 3 a.m.</h2>
+      <ul>
+        <li>Dark theme, DPI-aware (PerMonitorV2), tuned for 125–200% scaling.</li>
+        <li>Font size, opacity, and bilingual layout all adjustable.</li>
+        <li>Polish / English UI — i18n baked in, easy to extend.</li>
+      </ul>
+    </div>
+    <div class="media">
+      <img src="img/settings-appearance.png" alt="Appearance settings" />
+      <p class="caption">Appearance — dark, readable, configurable.</p>
+    </div>
+  </section>
+
+  <section id="s10" class="slide">
+    <div class="content">
+      <h2>What's under the hood</h2>
+      <div class="grid">
+        <div class="feat"><h3>Go 1.25</h3><p>Single static binary. No installer.</p></div>
+        <div class="feat"><h3>lxn/walk</h3><p>Native Win32 UI — no Electron, no Chromium.</p></div>
+        <div class="feat"><h3>Streaming SSE</h3><p>Partial tokens rendered as they arrive.</p></div>
+        <div class="feat"><h3>Glossary</h3><p>Force consistent terminology per domain.</p></div>
+        <div class="feat"><h3>Persisted state</h3><p>Window bounds, language, providers.</p></div>
+        <div class="feat"><h3>CI</h3><p>build · vet · test · staticcheck · govulncheck on every push.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="s11" class="slide">
+    <div class="content">
+      <h2>The takeaway</h2>
+      <ul class="big">
+        <li><strong>Don't</strong> let AI own your critical path — payments, auth, infra-as-code, anything that can page you at 3 a.m.</li>
+        <li><strong>Do</strong> let it build the 100 tiny tools around your critical path — overlays, converters, internal dashboards, one-shot scripts.</li>
+        <li>The leverage is enormous. This whole program is a weekend of glue code I would never have written by hand.</li>
+      </ul>
+      <p class="aside">AI as a <em>force multiplier for peripheral tooling</em> — that's where the safe ROI lives today.</p>
+    </div>
+  </section>
+
+  <section id="s12" class="slide slide-title">
+    <div class="content">
+      <p class="eyebrow">Fin</p>
+      <h1>Danke — Fragen?</h1>
+      <p class="subtitle">Source, binary, and this deck live at<br/><code>github.com/Ironship/live-translator-go</code></p>
+    </div>
+  </section>
+
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
