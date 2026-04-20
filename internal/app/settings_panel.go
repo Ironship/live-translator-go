@@ -307,14 +307,10 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 		return nil, err
 	}
 
-	panel.streamingBox, err = walk.NewCheckBox(translationGroup)
+	panel.streamingBox, err = addSettingsCheckRow(translationGroup, "Stream translations incrementally (Ollama / LM Studio only)", bodyFont)
 	if err != nil {
 		return nil, err
 	}
-	if bodyFont != nil {
-		panel.streamingBox.SetFont(bodyFont)
-	}
-	_ = panel.streamingBox.SetText("Stream translations incrementally (Ollama / LM Studio only)")
 
 	languagesGroup, err := newSettingsSection(translationPage, "Languages", sectionBrush, headingFont, bodyFont)
 	if err != nil {
@@ -376,14 +372,10 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	if err != nil {
 		return nil, err
 	}
-	panel.wordByWordBox, err = walk.NewCheckBox(timingGroup)
+	panel.wordByWordBox, err = addSettingsCheckRow(timingGroup, "Translate word by word (like Live Captions)", bodyFont)
 	if err != nil {
 		return nil, err
 	}
-	if bodyFont != nil {
-		panel.wordByWordBox.SetFont(bodyFont)
-	}
-	_ = panel.wordByWordBox.SetText("Translate word by word (like Live Captions)")
 	if _, err := addSettingsGroupNote(timingGroup, "When enabled, translations start immediately on each caption change. Request frequency ms is ignored.", bodyFont); err != nil {
 		return nil, err
 	}
@@ -407,42 +399,26 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	if err != nil {
 		return nil, err
 	}
-	panel.alternateLinesBox, err = walk.NewCheckBox(previewGroup)
+	panel.alternateLinesBox, err = addSettingsCheckRow(previewGroup, "Use alternating line colors", bodyFont)
 	if err != nil {
 		return nil, err
 	}
-	if bodyFont != nil {
-		panel.alternateLinesBox.SetFont(bodyFont)
-	}
-	_ = panel.alternateLinesBox.SetText("Use alternating line colors")
-	panel.showOriginalBox, err = walk.NewCheckBox(previewGroup)
+	panel.showOriginalBox, err = addSettingsCheckRow(previewGroup, "Show original caption alongside translation (bilingual)", bodyFont)
 	if err != nil {
 		return nil, err
 	}
-	if bodyFont != nil {
-		panel.showOriginalBox.SetFont(bodyFont)
-	}
-	_ = panel.showOriginalBox.SetText("Show original caption alongside translation (bilingual)")
 	panel.alternateColorRow, err = addSettingsLineEditRow(previewGroup, "Alternate line color", current.AlternateTextColor, inputBrush, sectionBrush)
 	if err != nil {
 		return nil, err
 	}
-	panel.alwaysOnTopBox, err = walk.NewCheckBox(previewGroup)
+	panel.alwaysOnTopBox, err = addSettingsCheckRow(previewGroup, "Keep window always on top", bodyFont)
 	if err != nil {
 		return nil, err
 	}
-	if bodyFont != nil {
-		panel.alwaysOnTopBox.SetFont(bodyFont)
-	}
-	_ = panel.alwaysOnTopBox.SetText("Keep window always on top")
-	panel.clickThroughBox, err = walk.NewCheckBox(previewGroup)
+	panel.clickThroughBox, err = addSettingsCheckRow(previewGroup, "Allow click-through in compact mode", bodyFont)
 	if err != nil {
 		return nil, err
 	}
-	if bodyFont != nil {
-		panel.clickThroughBox.SetFont(bodyFont)
-	}
-	_ = panel.clickThroughBox.SetText("Allow click-through in compact mode")
 	panel.alternateLinesBox.CheckedChanged().Attach(func() {
 		panel.updateAppearanceRows()
 	})
@@ -913,6 +889,58 @@ func addSettingsGroupNote(parent walk.Container, text string, font *walk.Font) (
 	note.SetTextColor(ui.TextMuted)
 	_ = note.SetText(text)
 	return note, nil
+}
+
+// addSettingsCheckRow places a checkbox next to a regular Label so the label
+// respects our dark-theme foreground colour (the native CheckBox caption is
+// painted by Windows with the classic near-black text on unthemed controls).
+// Clicking the label toggles the checkbox.
+func addSettingsCheckRow(parent walk.Container, text string, font *walk.Font) (*walk.CheckBox, error) {
+	row, err := walk.NewComposite(parent)
+	if err != nil {
+		return nil, err
+	}
+	layout := walk.NewHBoxLayout()
+	if err := layout.SetSpacing(8); err != nil {
+		return nil, err
+	}
+	if err := layout.SetMargins(walk.Margins{}); err != nil {
+		return nil, err
+	}
+	if err := row.SetLayout(layout); err != nil {
+		return nil, err
+	}
+
+	box, err := walk.NewCheckBox(row)
+	if err != nil {
+		return nil, err
+	}
+	_ = box.SetText("")
+	if err := box.SetMinMaxSize(walk.Size{Width: 18, Height: 18}, walk.Size{Width: 18, Height: 18}); err != nil {
+		return nil, err
+	}
+
+	label, err := walk.NewLabel(row)
+	if err != nil {
+		return nil, err
+	}
+	if font != nil {
+		label.SetFont(font)
+	}
+	label.SetTextColor(ui.TextPrimary)
+	_ = label.SetText(text)
+	if err := label.SetAlignment(walk.AlignHNearVCenter); err != nil {
+		return nil, err
+	}
+	if err := layout.SetStretchFactor(label, 1); err != nil {
+		return nil, err
+	}
+
+	label.MouseDown().Attach(func(_, _ int, _ walk.MouseButton) {
+		box.SetChecked(!box.Checked())
+	})
+
+	return box, nil
 }
 
 func addSettingsLineEditRow(parent walk.Container, labelText, value string, inputBrush *walk.SolidColorBrush, rowBrush walk.Brush) (*settingsFieldRow, error) {
