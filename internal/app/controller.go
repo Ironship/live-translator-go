@@ -210,7 +210,7 @@ func (c *Controller) AdjustFontSize(delta int) {
 func (c *Controller) SaveSettings(updated settings.Values) error {
 	updated = settings.Sanitize(updated)
 	if err := settings.Save(updated); err != nil {
-		return fmt.Errorf("nie udalo sie zapisac ustawien: %w", err)
+		return fmt.Errorf("%s: %w", i18n.T(updated.UILanguage, "settings.error.save"), err)
 	}
 
 	c.mu.Lock()

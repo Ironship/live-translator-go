@@ -63,10 +63,87 @@ type settingsPanel struct {
 	providerLabels    []string
 	tabFont           *walk.Font
 	tabFontSelected   *walk.Font
+
+	// i18n bindings: every translatable widget registers a key and a setter.
+	// panel.applyLanguage re-applies them in the currently selected locale.
+	lang         string
+	i18nBindings []i18nBinding
+	tabButtons   []*walk.PushButton
+	tabKeys      []string
+	currentTab   int
+}
+
+// i18nBinding pairs a translation key with a setter that applies the
+// resolved text to a specific widget (label, checkbox caption, tooltip, ...).
+type i18nBinding struct {
+	key   string
+	apply func(string)
+}
+
+// bind registers a translatable widget and immediately applies the text in
+// the panel's current language. The setter is invoked again every time
+// applyLanguage is called.
+func (p *settingsPanel) bind(key string, apply func(string)) {
+	p.i18nBindings = append(p.i18nBindings, i18nBinding{key: key, apply: apply})
+	apply(i18n.T(p.lang, key))
+}
+
+// bindLabel is a convenience wrapper for widgets whose caption is set via
+// walk.Label.SetText (also used for walk.CheckBox captions rendered through
+// addSettingsCheckRow's side label).
+func (p *settingsPanel) bindLabel(label *walk.Label, key string) {
+	if label == nil {
+		return
+	}
+	p.bind(key, func(text string) { _ = label.SetText(text) })
+}
+
+// bindButton sets both the visible caption and the tooltip of a push button
+// from two different keys. Either key may be empty to skip that part.
+func (p *settingsPanel) bindButton(button *walk.PushButton, textKey, tooltipKey, prefix string) {
+	if button == nil {
+		return
+	}
+	if textKey != "" {
+		p.bind(textKey, func(text string) { _ = button.SetText(prefix + text) })
+	}
+	if tooltipKey != "" {
+		p.bind(tooltipKey, func(text string) { _ = button.SetToolTipText(text) })
+	}
+}
+
+// applyLanguage refreshes all registered widgets with translations from the
+// new locale and redraws the tab bar so its selected/idle glyphs stay
+// consistent.
+func (p *settingsPanel) applyLanguage(lang string) {
+	p.lang = i18n.Normalize(lang)
+	for _, b := range p.i18nBindings {
+		b.apply(i18n.T(p.lang, b.key))
+	}
+	p.refreshTabButtons()
+}
+
+// refreshTabButtons rerenders the tab bar captions from the current language
+// while preserving the selected/idle state.
+func (p *settingsPanel) refreshTabButtons() {
+	if len(p.tabButtons) == 0 || len(p.tabKeys) != len(p.tabButtons) {
+		return
+	}
+	for i, button := range p.tabButtons {
+		if button == nil {
+			continue
+		}
+		title := i18n.T(p.lang, p.tabKeys[i])
+		if i == p.currentTab {
+			_ = button.SetText(ui.BulletSelected + title)
+		} else {
+			_ = button.SetText(ui.BulletIdle + title)
+		}
+	}
 }
 
 func newSettingsPanel(parent walk.Container, current settings.Values, onSave func(settings.Values) error, onCancel func()) (*settingsPanel, error) {
-	panel := &settingsPanel{onSave: onSave, onCancel: onCancel}
+	panel := &settingsPanel{onSave: onSave, onCancel: onCancel, lang: i18n.Normalize(current.UILanguage)}
 
 	var panelBrush *walk.SolidColorBrush
 	var sectionBrush *walk.SolidColorBrush
@@ -137,7 +214,7 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 		sectionEyebrow.SetFont(eyebrowFont)
 	}
 	sectionEyebrow.SetTextColor(ui.AccentSoft)
-	_ = sectionEyebrow.SetText("QUICK SETUP")
+	panel.bindLabel(sectionEyebrow, "settings.quickSetup")
 
 	intro, err := walk.NewLabel(parent)
 	if err != nil {
@@ -147,7 +224,7 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 		intro.SetFont(introFont)
 	}
 	intro.SetTextColor(ui.TextSecondary)
-	_ = intro.SetText("Provider, source window, and preview options are grouped into focused tabs so you can change one thing at a time without hunting through the whole form.")
+	panel.bindLabel(intro, "settings.intro")
 
 	tabsHost, err := walk.NewComposite(parent)
 	if err != nil {
@@ -243,13 +320,16 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	if err != nil {
 		return nil, err
 	}
-	translationGroup, err := newSettingsSection(translationPage, "Translation provider", sectionBrush, headingFont, bodyFont)
+	translationGroup, translationHeading, err := newSettingsSection(translationPage, "", sectionBrush, headingFont, bodyFont)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := addSettingsGroupNote(translationGroup, "Choose the backend, then use Test Connection before you close the panel.", bodyFont); err != nil {
+	panel.bindLabel(translationHeading, "settings.section.provider")
+	translationNote, err := addSettingsGroupNote(translationGroup, "", bodyFont)
+	if err != nil {
 		return nil, err
 	}
+	panel.bindLabel(translationNote, "settings.section.providerNote")
 	panel.providerButtons, err = addSettingsProviderRow(translationGroup, translator.ProviderOptions(), current.Provider, sectionBrush)
 	if err != nil {
 		return nil, err
@@ -275,19 +355,21 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	if err != nil {
 		return nil, err
 	}
-	panel.contextRow, err = addSettingsLineEditRow(translationGroup, "Translation context (optional)", current.TranslationContext, inputBrush, sectionBrush)
+	panel.contextRow, err = addSettingsLineEditRow(translationGroup, "", current.TranslationContext, inputBrush, sectionBrush)
 	if err != nil {
 		return nil, err
 	}
-	panel.contextNote, err = addSettingsGroupNote(translationGroup, "Optional: used by Ollama and LM Studio as additional context in the translation prompt.", bodyFont)
+	panel.bindLabel(panel.contextRow.label, "settings.field.context")
+	panel.contextNote, err = addSettingsGroupNote(translationGroup, "", bodyFont)
 	if err != nil {
 		return nil, err
 	}
+	panel.bindLabel(panel.contextNote, "settings.field.contextNote")
 
 	// Glossary (pinned term translations). Only applies to chat-completions backends.
 	panel.glossaryRow, panel.glossaryLabel, panel.glossaryEdit, err = addSettingsTextAreaRow(
 		translationGroup,
-		"Glossary (optional)",
+		"",
 		current.Glossary,
 		inputBrush,
 		sectionBrush,
@@ -298,135 +380,176 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	if bodyFont != nil {
 		panel.glossaryLabel.SetFont(bodyFont)
 	}
+	panel.bindLabel(panel.glossaryLabel, "settings.field.glossary")
 	panel.glossaryNote, err = addSettingsGroupNote(
 		translationGroup,
-		"One \"source | translation\" pair per line. Lines starting with # are ignored. Used by Ollama / LM Studio to enforce fixed renderings of names and terms.",
+		"",
 		bodyFont,
 	)
 	if err != nil {
 		return nil, err
 	}
+	panel.bindLabel(panel.glossaryNote, "settings.field.glossaryNote")
 
-	panel.streamingBox, err = addSettingsCheckRow(translationGroup, "Stream translations incrementally (Ollama / LM Studio only)", bodyFont)
+	var streamingLabel *walk.Label
+	panel.streamingBox, streamingLabel, err = addSettingsCheckRow(translationGroup, "", bodyFont)
 	if err != nil {
 		return nil, err
 	}
+	panel.bindLabel(streamingLabel, "settings.check.streaming")
 
-	languagesGroup, err := newSettingsSection(translationPage, "Languages", sectionBrush, headingFont, bodyFont)
+	languagesGroup, languagesHeading, err := newSettingsSection(translationPage, "", sectionBrush, headingFont, bodyFont)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := addSettingsGroupNote(languagesGroup, "Leave source on auto unless you have a stable single-language input.", bodyFont); err != nil {
-		return nil, err
-	}
-	panel.sourceLangRow, err = addSettingsLineEditRow(languagesGroup, "Source language", current.SourceLanguage, inputBrush, sectionBrush)
+	panel.bindLabel(languagesHeading, "settings.section.languages")
+	languagesNote, err := addSettingsGroupNote(languagesGroup, "", bodyFont)
 	if err != nil {
 		return nil, err
 	}
+	panel.bindLabel(languagesNote, "settings.section.languagesNote")
+	panel.sourceLangRow, err = addSettingsLineEditRow(languagesGroup, "", current.SourceLanguage, inputBrush, sectionBrush)
+	if err != nil {
+		return nil, err
+	}
+	panel.bindLabel(panel.sourceLangRow.label, "settings.field.sourceLanguage")
 	targetLanguageOptions := buildTargetLanguageOptions(current.TargetLanguage)
-	panel.targetLangBox, err = addSettingsComboBoxRow(languagesGroup, "Target language", targetLanguageOptions, translator.CanonicalTargetLanguage(current.TargetLanguage), inputBrush, sectionBrush)
+	var targetLangLabel *walk.Label
+	panel.targetLangBox, targetLangLabel, err = addSettingsComboBoxRow(languagesGroup, "", targetLanguageOptions, translator.CanonicalTargetLanguage(current.TargetLanguage), inputBrush, sectionBrush)
 	if err != nil {
 		return nil, err
 	}
+	panel.bindLabel(targetLangLabel, "settings.field.targetLanguage")
 
 	captionsPage, err := newSettingsPage(pagesHost, panelBrush)
 	if err != nil {
 		return nil, err
 	}
-	windowGroup, err := newSettingsSection(captionsPage, "Source window", sectionBrush, headingFont, bodyFont)
+	windowGroup, windowHeading, err := newSettingsSection(captionsPage, "", sectionBrush, headingFont, bodyFont)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := addSettingsGroupNote(windowGroup, "Defaults match the current Windows 11 Live Captions window. Change these only if Microsoft changes the UI element names.", bodyFont); err != nil {
-		return nil, err
-	}
-	panel.processRow, err = addSettingsLineEditRow(windowGroup, "Process name", current.CaptionProcessName, inputBrush, sectionBrush)
+	panel.bindLabel(windowHeading, "settings.section.sourceWindow")
+	windowNote, err := addSettingsGroupNote(windowGroup, "", bodyFont)
 	if err != nil {
 		return nil, err
 	}
-	panel.windowClassRow, err = addSettingsLineEditRow(windowGroup, "Window class", current.CaptionWindowClass, inputBrush, sectionBrush)
+	panel.bindLabel(windowNote, "settings.section.sourceWindowNote")
+	panel.processRow, err = addSettingsLineEditRow(windowGroup, "", current.CaptionProcessName, inputBrush, sectionBrush)
 	if err != nil {
 		return nil, err
 	}
-	panel.automationIDRow, err = addSettingsLineEditRow(windowGroup, "Automation id", current.CaptionAutomationID, inputBrush, sectionBrush)
+	panel.bindLabel(panel.processRow.label, "settings.field.processName")
+	panel.windowClassRow, err = addSettingsLineEditRow(windowGroup, "", current.CaptionWindowClass, inputBrush, sectionBrush)
 	if err != nil {
 		return nil, err
 	}
+	panel.bindLabel(panel.windowClassRow.label, "settings.field.windowClass")
+	panel.automationIDRow, err = addSettingsLineEditRow(windowGroup, "", current.CaptionAutomationID, inputBrush, sectionBrush)
+	if err != nil {
+		return nil, err
+	}
+	panel.bindLabel(panel.automationIDRow.label, "settings.field.automationId")
 
-	timingGroup, err := newSettingsSection(captionsPage, "Timing and latency", sectionBrush, headingFont, bodyFont)
+	timingGroup, timingHeading, err := newSettingsSection(captionsPage, "", sectionBrush, headingFont, bodyFont)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := addSettingsGroupNote(timingGroup, "Lower polling feels snappier but can create more churn when captions change very quickly.", bodyFont); err != nil {
-		return nil, err
-	}
-	panel.pollMsRow, err = addSettingsLineEditRow(timingGroup, "Caption poll ms", strconv.Itoa(current.CaptionPollMs), inputBrush, sectionBrush)
+	panel.bindLabel(timingHeading, "settings.section.timing")
+	timingNote, err := addSettingsGroupNote(timingGroup, "", bodyFont)
 	if err != nil {
 		return nil, err
 	}
-	panel.timeoutMsRow, err = addSettingsLineEditRow(timingGroup, "Request timeout ms", strconv.Itoa(current.RequestTimeoutMs), inputBrush, sectionBrush)
+	panel.bindLabel(timingNote, "settings.section.timingNote")
+	panel.pollMsRow, err = addSettingsLineEditRow(timingGroup, "", strconv.Itoa(current.CaptionPollMs), inputBrush, sectionBrush)
 	if err != nil {
 		return nil, err
 	}
-	panel.frequencyMsRow, err = addSettingsLineEditRow(timingGroup, "Request frequency ms", strconv.Itoa(current.RequestFrequencyMs), inputBrush, sectionBrush)
+	panel.bindLabel(panel.pollMsRow.label, "settings.field.captionPollMs")
+	panel.timeoutMsRow, err = addSettingsLineEditRow(timingGroup, "", strconv.Itoa(current.RequestTimeoutMs), inputBrush, sectionBrush)
 	if err != nil {
 		return nil, err
 	}
-	panel.wordByWordBox, err = addSettingsCheckRow(timingGroup, "Translate word by word (like Live Captions)", bodyFont)
+	panel.bindLabel(panel.timeoutMsRow.label, "settings.field.requestTimeoutMs")
+	panel.frequencyMsRow, err = addSettingsLineEditRow(timingGroup, "", strconv.Itoa(current.RequestFrequencyMs), inputBrush, sectionBrush)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := addSettingsGroupNote(timingGroup, "When enabled, translations start immediately on each caption change. Request frequency ms is ignored.", bodyFont); err != nil {
+	panel.bindLabel(panel.frequencyMsRow.label, "settings.field.requestFrequencyMs")
+	var wordByWordLabel *walk.Label
+	panel.wordByWordBox, wordByWordLabel, err = addSettingsCheckRow(timingGroup, "", bodyFont)
+	if err != nil {
 		return nil, err
 	}
+	panel.bindLabel(wordByWordLabel, "settings.check.wordByWord")
+	wordByWordNote, err := addSettingsGroupNote(timingGroup, "", bodyFont)
+	if err != nil {
+		return nil, err
+	}
+	panel.bindLabel(wordByWordNote, "settings.check.wordByWordNote")
 
 	appearancePage, err := newSettingsPage(pagesHost, panelBrush)
 	if err != nil {
 		return nil, err
 	}
-	previewGroup, err := newSettingsSection(appearancePage, "Preview", sectionBrush, headingFont, bodyFont)
+	previewGroup, previewHeading, err := newSettingsSection(appearancePage, "", sectionBrush, headingFont, bodyFont)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := addSettingsGroupNote(previewGroup, "Font size updates immediately. Use #RRGGBB for line colors, then enable alternating colors if adjacent lines should swap colors.", bodyFont); err != nil {
-		return nil, err
-	}
-	panel.fontSizeRow, err = addSettingsLineEditRow(previewGroup, "Font size", strconv.Itoa(current.FontSize), inputBrush, sectionBrush)
+	panel.bindLabel(previewHeading, "settings.section.preview")
+	previewNote, err := addSettingsGroupNote(previewGroup, "", bodyFont)
 	if err != nil {
 		return nil, err
 	}
-	panel.textColorRow, err = addSettingsLineEditRow(previewGroup, "Primary line color", current.TextColor, inputBrush, sectionBrush)
+	panel.bindLabel(previewNote, "settings.section.previewNote")
+	panel.fontSizeRow, err = addSettingsLineEditRow(previewGroup, "", strconv.Itoa(current.FontSize), inputBrush, sectionBrush)
 	if err != nil {
 		return nil, err
 	}
-	panel.alternateLinesBox, err = addSettingsCheckRow(previewGroup, "Use alternating line colors", bodyFont)
+	panel.bindLabel(panel.fontSizeRow.label, "settings.field.fontSize")
+	panel.textColorRow, err = addSettingsLineEditRow(previewGroup, "", current.TextColor, inputBrush, sectionBrush)
 	if err != nil {
 		return nil, err
 	}
-	panel.showOriginalBox, err = addSettingsCheckRow(previewGroup, "Show original caption alongside translation (bilingual)", bodyFont)
+	panel.bindLabel(panel.textColorRow.label, "settings.field.primaryColor")
+	var alternateBoxLabel *walk.Label
+	panel.alternateLinesBox, alternateBoxLabel, err = addSettingsCheckRow(previewGroup, "", bodyFont)
 	if err != nil {
 		return nil, err
 	}
-	panel.alternateColorRow, err = addSettingsLineEditRow(previewGroup, "Alternate line color", current.AlternateTextColor, inputBrush, sectionBrush)
+	panel.bindLabel(alternateBoxLabel, "settings.check.alternate")
+	var showOriginalLabel *walk.Label
+	panel.showOriginalBox, showOriginalLabel, err = addSettingsCheckRow(previewGroup, "", bodyFont)
 	if err != nil {
 		return nil, err
 	}
-	panel.alwaysOnTopBox, err = addSettingsCheckRow(previewGroup, "Keep window always on top", bodyFont)
+	panel.bindLabel(showOriginalLabel, "settings.check.showOriginal")
+	panel.alternateColorRow, err = addSettingsLineEditRow(previewGroup, "", current.AlternateTextColor, inputBrush, sectionBrush)
 	if err != nil {
 		return nil, err
 	}
-	panel.clickThroughBox, err = addSettingsCheckRow(previewGroup, "Allow click-through in compact mode", bodyFont)
+	panel.bindLabel(panel.alternateColorRow.label, "settings.field.alternate")
+	var alwaysOnTopLabel *walk.Label
+	panel.alwaysOnTopBox, alwaysOnTopLabel, err = addSettingsCheckRow(previewGroup, "", bodyFont)
 	if err != nil {
 		return nil, err
 	}
+	panel.bindLabel(alwaysOnTopLabel, "settings.check.alwaysOnTop")
+	var clickThroughLabel *walk.Label
+	panel.clickThroughBox, clickThroughLabel, err = addSettingsCheckRow(previewGroup, "", bodyFont)
+	if err != nil {
+		return nil, err
+	}
+	panel.bindLabel(clickThroughLabel, "settings.check.clickThrough")
 	panel.alternateLinesBox.CheckedChanged().Attach(func() {
 		panel.updateAppearanceRows()
 	})
 
-	languageGroup, err := newSettingsSection(appearancePage, "Interface language", sectionBrush, headingFont, bodyFont)
+	languageGroup, languageHeading, err := newSettingsSection(appearancePage, "", sectionBrush, headingFont, bodyFont)
 	if err != nil {
 		return nil, err
 	}
+	panel.bindLabel(languageHeading, "settings.section.language")
 	languageCodes := i18n.SupportedLanguages()
 	languageOptions := make([]string, len(languageCodes))
 	for i, code := range languageCodes {
@@ -440,13 +563,17 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 			break
 		}
 	}
-	panel.languageBox, err = addSettingsComboBoxRow(languageGroup, "Language", languageOptions, languageOptions[currentLanguageIdx], inputBrush, sectionBrush)
+	var languageLabel *walk.Label
+	panel.languageBox, languageLabel, err = addSettingsComboBoxRow(languageGroup, "", languageOptions, languageOptions[currentLanguageIdx], inputBrush, sectionBrush)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := addSettingsGroupNote(languageGroup, i18n.T(current.UILanguage, "settings.languageNote"), bodyFont); err != nil {
+	panel.bindLabel(languageLabel, "settings.field.language")
+	languageNote, err := addSettingsGroupNote(languageGroup, "", bodyFont)
+	if err != nil {
 		return nil, err
 	}
+	panel.bindLabel(languageNote, "settings.languageNote")
 
 	footer, err := walk.NewComposite(parent)
 	if err != nil {
@@ -485,8 +612,7 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	if footerFont != nil {
 		applyButton.SetFont(footerFont)
 	}
-	_ = applyButton.SetText(ui.SymbolSave + "Save")
-	_ = applyButton.SetToolTipText("Save settings and apply them immediately")
+	panel.bindButton(applyButton, "footer.save", "footer.saveTooltip", ui.SymbolSave)
 	if err := applyButton.SetMinMaxSize(walk.Size{Width: 124, Height: 40}, walk.Size{Width: 164, Height: 40}); err != nil {
 		return nil, err
 	}
@@ -498,8 +624,7 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	if footerFont != nil {
 		testButton.SetFont(footerFont)
 	}
-	_ = testButton.SetText(ui.SymbolTest + "Test Connection")
-	_ = testButton.SetToolTipText("Send a small test request to the selected provider")
+	panel.bindButton(testButton, "footer.test", "footer.testTooltip", ui.SymbolTest)
 	if err := testButton.SetMinMaxSize(walk.Size{Width: 176, Height: 40}, walk.Size{Width: 216, Height: 40}); err != nil {
 		return nil, err
 	}
@@ -511,8 +636,7 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 	if footerFont != nil {
 		cancelButton.SetFont(footerFont)
 	}
-	_ = cancelButton.SetText(ui.SymbolCancel + "Close")
-	_ = cancelButton.SetToolTipText("Discard unsaved edits and close the settings panel")
+	panel.bindButton(cancelButton, "footer.close", "footer.closeTooltip", ui.SymbolCancel)
 	if err := cancelButton.SetMinMaxSize(walk.Size{Width: 124, Height: 40}, walk.Size{Width: 164, Height: 40}); err != nil {
 		return nil, err
 	}
@@ -535,26 +659,26 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 		ui.ApplyNativeDarkTheme(button)
 	}
 
-	tabTitles := []string{"Translation", "Live Captions", "Appearance"}
-	tabButtons := []*walk.PushButton{translationTabButton, captionsTabButton, appearanceTabButton}
+	panel.tabButtons = []*walk.PushButton{translationTabButton, captionsTabButton, appearanceTabButton}
+	panel.tabKeys = []string{"tab.translation", "tab.captions", "tab.appearance"}
 	tabPages := []*walk.Composite{translationPage, captionsPage, appearancePage}
 	panel.tabFont = tabFont
 	panel.tabFontSelected = tabFontSelected
 	showTab := func(index int) {
+		panel.currentTab = index
 		for i, page := range tabPages {
 			page.SetVisible(i == index)
 			if i == index {
-				_ = tabButtons[i].SetText(ui.BulletSelected + tabTitles[i])
 				if tabFontSelected != nil {
-					tabButtons[i].SetFont(tabFontSelected)
+					panel.tabButtons[i].SetFont(tabFontSelected)
 				}
 			} else {
-				_ = tabButtons[i].SetText(ui.BulletIdle + tabTitles[i])
 				if tabFont != nil {
-					tabButtons[i].SetFont(tabFont)
+					panel.tabButtons[i].SetFont(tabFont)
 				}
 			}
 		}
+		panel.refreshTabButtons()
 	}
 
 	translationTabButton.Clicked().Attach(func() { showTab(0) })
@@ -638,7 +762,7 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 			return
 		}
 
-		panel.showInfo("Testing provider connection...")
+		panel.showInfo(i18n.T(panel.lang, "footer.testing"))
 		testButton.SetEnabled(false)
 
 		go func(values settings.Values) {
@@ -734,6 +858,7 @@ func (p *settingsPanel) Load(values settings.Values) {
 	}
 	p.updateProviderRows(values.Provider)
 	p.updateAppearanceRows()
+	p.applyLanguage(values.UILanguage)
 	p.clearStatus()
 }
 
@@ -856,27 +981,27 @@ func newSettingsPage(parent walk.Container, background walk.Brush) (*walk.Compos
 	return page, nil
 }
 
-func newSettingsSection(parent walk.Container, title string, background walk.Brush, headingFont, titleFont *walk.Font) (*walk.Composite, error) {
+func newSettingsSection(parent walk.Container, title string, background walk.Brush, headingFont, titleFont *walk.Font) (*walk.Composite, *walk.Label, error) {
 	group, err := walk.NewComposite(parent)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if background != nil {
 		group.SetBackground(background)
 	}
 	layout := walk.NewVBoxLayout()
 	if err := layout.SetSpacing(12); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err := layout.SetMargins(walk.Margins{HNear: 18, VNear: 18, HFar: 18, VFar: 18}); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err := group.SetLayout(layout); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	heading, err := walk.NewLabel(group)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if headingFont != nil {
 		heading.SetFont(headingFont)
@@ -890,7 +1015,7 @@ func newSettingsSection(parent walk.Container, title string, background walk.Bru
 	if err == nil {
 		_ = divider.SetMinMaxSize(walk.Size{Width: 0, Height: 1}, walk.Size{Width: 16777215, Height: 1})
 	}
-	return group, nil
+	return group, heading, nil
 }
 
 func addSettingsGroupNote(parent walk.Container, text string, font *walk.Font) (*walk.Label, error) {
@@ -909,35 +1034,36 @@ func addSettingsGroupNote(parent walk.Container, text string, font *walk.Font) (
 // addSettingsCheckRow places a checkbox next to a regular Label so the label
 // respects our dark-theme foreground colour (the native CheckBox caption is
 // painted by Windows with the classic near-black text on unthemed controls).
-// Clicking the label toggles the checkbox.
-func addSettingsCheckRow(parent walk.Container, text string, font *walk.Font) (*walk.CheckBox, error) {
+// Clicking the label toggles the checkbox. The caption Label is returned so
+// callers can re-apply its text when the UI language changes.
+func addSettingsCheckRow(parent walk.Container, text string, font *walk.Font) (*walk.CheckBox, *walk.Label, error) {
 	row, err := walk.NewComposite(parent)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	layout := walk.NewHBoxLayout()
 	if err := layout.SetSpacing(8); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err := layout.SetMargins(walk.Margins{}); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err := row.SetLayout(layout); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	box, err := walk.NewCheckBox(row)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	_ = box.SetText("")
 	if err := box.SetMinMaxSize(walk.Size{Width: 18, Height: 18}, walk.Size{Width: 18, Height: 18}); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	label, err := walk.NewLabel(row)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if font != nil {
 		label.SetFont(font)
@@ -945,17 +1071,17 @@ func addSettingsCheckRow(parent walk.Container, text string, font *walk.Font) (*
 	label.SetTextColor(ui.TextPrimary)
 	_ = label.SetText(text)
 	if err := label.SetAlignment(walk.AlignHNearVCenter); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err := layout.SetStretchFactor(label, 1); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	label.MouseDown().Attach(func(_, _ int, _ walk.MouseButton) {
 		box.SetChecked(!box.Checked())
 	})
 
-	return box, nil
+	return box, label, nil
 }
 
 func addSettingsLineEditRow(parent walk.Container, labelText, value string, inputBrush *walk.SolidColorBrush, rowBrush walk.Brush) (*settingsFieldRow, error) {
@@ -1070,57 +1196,57 @@ func addSettingsTextAreaRow(parent walk.Container, labelText, value string, inpu
 	return row, label, edit, nil
 }
 
-func addSettingsComboBoxRow(parent walk.Container, labelText string, options []string, value string, inputBrush *walk.SolidColorBrush, rowBrush walk.Brush) (*walk.ComboBox, error) {
+func addSettingsComboBoxRow(parent walk.Container, labelText string, options []string, value string, inputBrush *walk.SolidColorBrush, rowBrush walk.Brush) (*walk.ComboBox, *walk.Label, error) {
 	row, err := walk.NewComposite(parent)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if rowBrush != nil {
 		row.SetBackground(rowBrush)
 	}
 	layout := walk.NewHBoxLayout()
 	if err := layout.SetSpacing(10); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err := layout.SetMargins(walk.Margins{}); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err := row.SetLayout(layout); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	label, err := walk.NewLabel(row)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	label.SetTextColor(ui.TextPrimary)
 	_ = label.SetText(labelText)
 	if err := label.SetMinMaxSize(walk.Size{Width: labelWidth, Height: 0}, walk.Size{Width: labelWidth, Height: maxFieldHeight}); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err := label.SetAlignment(walk.AlignHNearVCenter); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	box, err := walk.NewComboBox(row)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err := box.SetModel(options); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err := box.SetCurrentIndex(indexOfString(options, value)); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if inputBrush != nil {
 		box.SetBackground(inputBrush)
 	}
 	ui.ApplyNativeDarkTheme(box)
 	if err := layout.SetStretchFactor(box, 1); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return box, nil
+	return box, label, nil
 }
 
 func buildTargetLanguageOptions(currentValue string) []string {
@@ -1285,39 +1411,44 @@ func collectPanelSettings(
 	updated.UILanguage = i18n.Normalize(uiLanguage)
 	updated.StreamingEnabled = streamingEnabled
 
+	// Validation messages are rendered in the UI language the user just
+	// picked in the dropdown so feedback is consistent with the rest of the
+	// panel (even before Save has been clicked).
+	lang := updated.UILanguage
+
 	parsedPollMs, err := strconv.Atoi(strings.TrimSpace(pollMs))
 	if err != nil || parsedPollMs <= 0 {
-		return base, "Caption poll ms musi byc dodatnia liczba calkowita."
+		return base, i18n.T(lang, "settings.error.pollMs")
 	}
 	updated.CaptionPollMs = parsedPollMs
 
 	parsedTimeoutMs, err := strconv.Atoi(strings.TrimSpace(timeoutMs))
 	if err != nil || parsedTimeoutMs <= 0 {
-		return base, "Request timeout ms musi byc dodatnia liczba calkowita."
+		return base, i18n.T(lang, "settings.error.timeoutMs")
 	}
 	updated.RequestTimeoutMs = parsedTimeoutMs
 
 	parsedFrequencyMs, err := strconv.Atoi(strings.TrimSpace(frequencyMs))
 	if err != nil || parsedFrequencyMs <= 0 {
-		return base, "Request frequency ms musi byc dodatnia liczba calkowita."
+		return base, i18n.T(lang, "settings.error.frequencyMs")
 	}
 	updated.RequestFrequencyMs = parsedFrequencyMs
 
 	parsedFontSize, err := strconv.Atoi(strings.TrimSpace(fontSize))
 	if err != nil || parsedFontSize <= 0 {
-		return base, "Font size musi byc dodatnia liczba calkowita."
+		return base, i18n.T(lang, "settings.error.fontSize")
 	}
 	updated.FontSize = parsedFontSize
 
 	normalizedTextColor := settings.NormalizeHexColor(textColor, "")
 	if normalizedTextColor == "" {
-		return base, "Primary line color musi miec format #RRGGBB."
+		return base, i18n.T(lang, "settings.error.primaryColor")
 	}
 	updated.TextColor = normalizedTextColor
 
 	normalizedAlternateColor := settings.NormalizeHexColor(alternateTextColor, "")
 	if normalizedAlternateColor == "" {
-		return base, "Alternate line color musi miec format #RRGGBB."
+		return base, i18n.T(lang, "settings.error.alternateColor")
 	}
 	updated.AlternateTextColor = normalizedAlternateColor
 

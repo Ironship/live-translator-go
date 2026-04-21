@@ -121,17 +121,29 @@ func Save(values Values) error {
 	return os.WriteFile(path, data, 0600)
 }
 
+// ResolvePath returns the absolute path to the settings file.
+//
+// The file lives next to the executable so that settings persist regardless
+// of how the app is launched (double-click, pinned shortcut, Start menu).
+// Earlier versions preferred os.Getwd(), which caused the file to be written
+// to - and read from - whatever directory the shortcut happened to set as
+// current. Users saw saved toggles "disappear" between launches when the
+// working directory differed from the executable's directory. Keeping the
+// file next to the exe matches what README.md documents.
+//
+// os.Getwd() is kept only as a last-resort fallback for the rare case in
+// which os.Executable() fails (e.g. exotic development setups).
 func ResolvePath() (string, error) {
-	if cwd, err := os.Getwd(); err == nil {
-		return filepath.Join(cwd, FileName), nil
+	if executablePath, err := os.Executable(); err == nil {
+		return filepath.Join(filepath.Dir(executablePath), FileName), nil
 	}
 
-	executablePath, err := os.Executable()
+	cwd, err := os.Getwd()
 	if err != nil {
 		return "", err
 	}
 
-	return filepath.Join(filepath.Dir(executablePath), FileName), nil
+	return filepath.Join(cwd, FileName), nil
 }
 
 func IsConfigured(values Values) bool {
