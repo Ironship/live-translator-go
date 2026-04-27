@@ -65,7 +65,7 @@ This project is meant to stay close to KISS. The current version follows a few s
 ## Requirements
 
 - Windows 11 with Windows Live Captions available,
-- Go 1.22+ if you want to run from source,
+- Go 1.25+ if you want to run from source,
 - provider configuration only if you are not using Google.
 
 ## Quick Start

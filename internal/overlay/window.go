@@ -316,7 +316,7 @@ func New(config Config) (*Window, error) {
 		return nil, err
 	}
 	buttonLayout := walk.NewHBoxLayout()
-	if err := buttonLayout.SetSpacing(8); err != nil {
+	if err := buttonLayout.SetSpacing(10); err != nil {
 		return nil, err
 	}
 	if err := buttonLayout.SetMargins(walk.Margins{}); err != nil {
@@ -365,11 +365,6 @@ func New(config Config) (*Window, error) {
 		return nil, err
 	}
 
-	// Visual separator between primary actions and toggles.
-	if sep, err := walk.NewVSeparator(buttonRow); err == nil {
-		_ = sep.SetMinMaxSize(walk.Size{Width: 1, Height: 24}, walk.Size{Width: 1, Height: 24})
-	}
-
 	alwaysOnTopButton, err := newIconButton(ui.IconPinned, i18n.T(config.Language, "toolbar.alwaysOnTop")+i18n.T(config.Language, "toolbar.onSuffix"))
 	if err != nil {
 		return nil, err
@@ -383,11 +378,6 @@ func New(config Config) (*Window, error) {
 	focusButton, err := newIconButton(ui.IconEnterFocus, i18n.T(config.Language, "toolbar.focus"))
 	if err != nil {
 		return nil, err
-	}
-
-	// Visual separator before destructive / terminal actions.
-	if sep, err := walk.NewVSeparator(buttonRow); err == nil {
-		_ = sep.SetMinMaxSize(walk.Size{Width: 1, Height: 24}, walk.Size{Width: 1, Height: 24})
 	}
 
 	clearButton, err := newIconButton(ui.IconClear, i18n.T(config.Language, "toolbar.clear"))
@@ -486,7 +476,7 @@ func New(config Config) (*Window, error) {
 	}
 	previewTitle.SetFont(eyebrowFont)
 	previewTitle.SetTextColor(ui.Accent)
-	_ = previewTitle.SetText("LIVE CAPTIONS")
+	_ = previewTitle.SetText("TRANSLATION")
 
 	if _, err := walk.NewHSpacer(previewHeader); err != nil {
 		return nil, err
@@ -498,7 +488,7 @@ func New(config Config) (*Window, error) {
 	}
 	focusHintLabel.SetFont(statusFont)
 	focusHintLabel.SetTextColor(ui.TextMuted)
-	_ = focusHintLabel.SetText("[Esc to leave focus mode]")
+	_ = focusHintLabel.SetText(i18n.T(config.Language, "toolbar.focusHint"))
 	focusHintLabel.SetVisible(false)
 
 	previewStage, err := walk.NewGradientComposite(previewPanel)
@@ -704,22 +694,24 @@ func New(config Config) (*Window, error) {
 		return nil, err
 	}
 
-	// Restore persisted window placement, if any. Must happen after applyConfig
-	// because applyConfig may resize the window based on state-specific defaults.
+	// Restore persisted window placement, if any. Large settings-window bounds are
+	// kept for the settings state so the compact preview does not reopen enormous.
 	if config.WindowWidth > 0 && config.WindowHeight > 0 {
-		// Persisted bounds are stored in 96-dpi units; SetBounds will scale them to
-		// the current monitor DPI.
 		saved := walk.Rectangle{
 			X:      config.WindowX,
 			Y:      config.WindowY,
 			Width:  config.WindowWidth,
 			Height: config.WindowHeight,
 		}
-		window.expandedBounds = saved
-		window.collapsedBounds = saved
+		compactDefault := boundsForState(config, false, false, window.mainWindow.DPI())
 		window.applyingBounds = true
-		if err := window.mainWindow.SetBounds(saved); err == nil {
-			window.storeBounds(saved)
+		if savedBoundsLookCompact(saved, compactDefault) {
+			window.collapsedBounds = saved
+			if err := window.mainWindow.SetBounds(saved); err == nil {
+				window.storeBounds(saved)
+			}
+		} else {
+			window.expandedBounds = saved
 		}
 		window.applyingBounds = false
 	}
@@ -748,11 +740,21 @@ func (w *Window) PersistedBounds() (x, y, width, height int) {
 }
 
 func (w *Window) latestStoredBounds() walk.Rectangle {
-	switch {
-	case isStoredBounds(w.expandedBounds):
+	if w.focusMode && isStoredBounds(w.focusBounds) {
+		return w.focusBounds
+	}
+	if w.settingsVisible && isStoredBounds(w.expandedBounds) {
 		return w.expandedBounds
+	}
+	if !w.focusMode && !w.settingsVisible && isStoredBounds(w.collapsedBounds) {
+		return w.collapsedBounds
+	}
+
+	switch {
 	case isStoredBounds(w.collapsedBounds):
 		return w.collapsedBounds
+	case isStoredBounds(w.expandedBounds):
+		return w.expandedBounds
 	case isStoredBounds(w.focusBounds):
 		return w.focusBounds
 	}
@@ -791,6 +793,7 @@ func (w *Window) SetLanguage(lang string) {
 		_ = w.speechPanel.SetToolTipText(i18n.T(w.language, "toolbar.openPanel"))
 		_ = w.clearButton.SetToolTipText(i18n.T(w.language, "toolbar.clear"))
 		_ = w.exit.SetToolTipText(i18n.T(w.language, "toolbar.exit"))
+		_ = w.focusHint.SetText(i18n.T(w.language, "toolbar.focusHint"))
 		if w.languageButton != nil {
 			_ = w.languageButton.SetToolTipText(languageButtonTooltip(w.language))
 		}
@@ -1160,7 +1163,7 @@ func (w *Window) applyPresentation() error {
 func (w *Window) updateActionButtons() {
 	if w.settingsVisible {
 		_ = w.settings.SetText(ui.IconChevronLeft)
-		_ = w.settings.SetToolTipText("Hide settings")
+		_ = w.settings.SetToolTipText(i18n.T(w.language, "toolbar.hideSettings"))
 	} else {
 		_ = w.settings.SetText(ui.IconSettings)
 		_ = w.settings.SetToolTipText(i18n.T(w.language, "toolbar.settings"))
@@ -1176,7 +1179,7 @@ func (w *Window) updateActionButtons() {
 
 	if w.focusMode {
 		_ = w.focus.SetText(ui.IconExitFocus)
-		_ = w.focus.SetToolTipText("Exit focus mode (Esc)")
+		_ = w.focus.SetToolTipText(i18n.T(w.language, "toolbar.exitFocus"))
 	} else {
 		_ = w.focus.SetText(ui.IconEnterFocus)
 		_ = w.focus.SetToolTipText(i18n.T(w.language, "toolbar.focus"))
@@ -1307,6 +1310,18 @@ func (w *Window) storeBounds(bounds walk.Rectangle) {
 
 func isStoredBounds(bounds walk.Rectangle) bool {
 	return bounds.Width > 0 && bounds.Height > 0
+}
+
+func savedBoundsLookCompact(saved walk.Rectangle, compactDefault walk.Rectangle) bool {
+	if !isStoredBounds(saved) || !isStoredBounds(compactDefault) {
+		return false
+	}
+
+	maxCompactHeight := compactDefault.Height + 180
+	if maxCompactHeight < 420 {
+		maxCompactHeight = 420
+	}
+	return saved.Height <= maxCompactHeight
 }
 
 func (w *Window) applyPreviewLines(lines []previewLine, animate bool) {

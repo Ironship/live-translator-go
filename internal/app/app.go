@@ -14,6 +14,14 @@ import (
 )
 
 func Run() error {
+	activation, err := activateManifestContext()
+	if err != nil {
+		return err
+	}
+	if activation != nil {
+		defer activation.Close()
+	}
+
 	values, err := LoadSettings()
 	if err != nil {
 		return err

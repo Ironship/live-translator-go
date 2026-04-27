@@ -31,8 +31,8 @@ const (
 // Text-symbol glyphs that render with normal UI fonts (Segoe UI) — safe to
 // prepend to regular button or label text without switching fonts.
 const (
-	BulletSelected = "\u25CF " // ● — filled bullet prefix for selected item
-	BulletIdle     = "   "     // three spaces — keeps text alignment with selected entries
+	BulletSelected = "\u2022 " // • — small bullet prefix for selected item
+	BulletIdle     = "  "      // two spaces — keeps text alignment with selected entries
 	SymbolSave     = "\u2713 " // ✓
 	SymbolTest     = "\u27F3 " // ⟳
 	SymbolCancel   = "\u2715 " // ✕

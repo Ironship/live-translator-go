@@ -137,7 +137,7 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 		sectionEyebrow.SetFont(eyebrowFont)
 	}
 	sectionEyebrow.SetTextColor(ui.AccentSoft)
-	_ = sectionEyebrow.SetText("QUICK SETUP")
+	_ = sectionEyebrow.SetText("SETUP")
 
 	intro, err := walk.NewLabel(parent)
 	if err != nil {
@@ -147,7 +147,7 @@ func newSettingsPanel(parent walk.Container, current settings.Values, onSave fun
 		intro.SetFont(introFont)
 	}
 	intro.SetTextColor(ui.TextSecondary)
-	_ = intro.SetText("Provider, source window, and preview options are grouped into focused tabs so you can change one thing at a time without hunting through the whole form.")
+	_ = intro.SetText("Provider, captions, and preview options are grouped into focused tabs.")
 
 	tabsHost, err := walk.NewComposite(parent)
 	if err != nil {
@@ -861,14 +861,17 @@ func newSettingsSection(parent walk.Container, title string, background walk.Bru
 	if err != nil {
 		return nil, err
 	}
+	if titleFont != nil {
+		group.SetFont(titleFont)
+	}
 	if background != nil {
 		group.SetBackground(background)
 	}
 	layout := walk.NewVBoxLayout()
-	if err := layout.SetSpacing(12); err != nil {
+	if err := layout.SetSpacing(10); err != nil {
 		return nil, err
 	}
-	if err := layout.SetMargins(walk.Margins{HNear: 18, VNear: 18, HFar: 18, VFar: 18}); err != nil {
+	if err := layout.SetMargins(walk.Margins{HNear: 20, VNear: 18, HFar: 20, VFar: 20}); err != nil {
 		return nil, err
 	}
 	if err := group.SetLayout(layout); err != nil {
@@ -885,11 +888,6 @@ func newSettingsSection(parent walk.Container, title string, background walk.Bru
 	}
 	heading.SetTextColor(ui.TextPrimary)
 	_ = heading.SetText(title)
-
-	divider, err := walk.NewHSeparator(group)
-	if err == nil {
-		_ = divider.SetMinMaxSize(walk.Size{Width: 0, Height: 1}, walk.Size{Width: 16777215, Height: 1})
-	}
 	return group, nil
 }
 
@@ -901,7 +899,7 @@ func addSettingsGroupNote(parent walk.Container, text string, font *walk.Font) (
 	if font != nil {
 		note.SetFont(font)
 	}
-	note.SetTextColor(ui.TextMuted)
+	note.SetTextColor(ui.TextSecondary)
 	_ = note.SetText(text)
 	return note, nil
 }
@@ -926,6 +924,15 @@ func addSettingsCheckRow(parent walk.Container, text string, font *walk.Font) (*
 		return nil, err
 	}
 
+	spacer, err := walk.NewLabel(row)
+	if err != nil {
+		return nil, err
+	}
+	_ = spacer.SetText("")
+	if err := spacer.SetMinMaxSize(walk.Size{Width: labelWidth, Height: 0}, walk.Size{Width: labelWidth, Height: maxFieldHeight}); err != nil {
+		return nil, err
+	}
+
 	box, err := walk.NewCheckBox(row)
 	if err != nil {
 		return nil, err
@@ -942,7 +949,7 @@ func addSettingsCheckRow(parent walk.Container, text string, font *walk.Font) (*
 	if font != nil {
 		label.SetFont(font)
 	}
-	label.SetTextColor(ui.TextPrimary)
+	label.SetTextColor(ui.TextSecondary)
 	_ = label.SetText(text)
 	if err := label.SetAlignment(walk.AlignHNearVCenter); err != nil {
 		return nil, err
@@ -981,7 +988,7 @@ func addSettingsLineEditRow(parent walk.Container, labelText, value string, inpu
 	if err != nil {
 		return nil, err
 	}
-	label.SetTextColor(ui.TextPrimary)
+	label.SetTextColor(ui.TextSecondary)
 	_ = label.SetText(labelText)
 	if err := label.SetMinMaxSize(walk.Size{Width: labelWidth, Height: 0}, walk.Size{Width: labelWidth, Height: maxFieldHeight}); err != nil {
 		return nil, err
@@ -1033,7 +1040,7 @@ func addSettingsTextAreaRow(parent walk.Container, labelText, value string, inpu
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	label.SetTextColor(ui.TextPrimary)
+	label.SetTextColor(ui.TextSecondary)
 	_ = label.SetText(labelText)
 	if err := label.SetMinMaxSize(walk.Size{Width: labelWidth, Height: 0}, walk.Size{Width: labelWidth, Height: maxFieldHeight}); err != nil {
 		return nil, nil, nil, err
@@ -1093,7 +1100,7 @@ func addSettingsComboBoxRow(parent walk.Container, labelText string, options []s
 	if err != nil {
 		return nil, err
 	}
-	label.SetTextColor(ui.TextPrimary)
+	label.SetTextColor(ui.TextSecondary)
 	_ = label.SetText(labelText)
 	if err := label.SetMinMaxSize(walk.Size{Width: labelWidth, Height: 0}, walk.Size{Width: labelWidth, Height: maxFieldHeight}); err != nil {
 		return nil, err
@@ -1167,7 +1174,7 @@ func addSettingsProviderRow(parent walk.Container, options []string, value strin
 	if err != nil {
 		return nil, err
 	}
-	label.SetTextColor(ui.TextPrimary)
+	label.SetTextColor(ui.TextSecondary)
 	_ = label.SetText("Provider")
 	if err := label.SetMinMaxSize(walk.Size{Width: labelWidth, Height: 0}, walk.Size{Width: labelWidth, Height: maxFieldHeight}); err != nil {
 		return nil, err
